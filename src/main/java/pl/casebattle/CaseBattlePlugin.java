@@ -20,7 +20,26 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
     private final Map<UUID, BattleLobby> activeLobbies = new HashMap<>();
     private final Map<UUID, String> selectedCaseName = new HashMap<>();
+    private final Map<UUID, BattleMode> selectedMode = new HashMap<>();
     private final Random random = new Random();
+
+    public enum BattleMode {
+        CLASSIC("Classic", "§aWygrywa gracz z największą sumą wartości przedmiotów."),
+        UNDERDOG("Underdog", "§cWygrywa gracz z NAJMNIEJSZĄ sumą wartości przedmiotów."),
+        POINT_RUSH("Point Rush", "§eKażda wygrana runda daje 1 pkt. Wygrywa gracz z największą ilością punktów."),
+        TERMINAL("Terminal", "§bO wygranej decyduje WYŁĄCZNIE drop z ostatniej skrzynki.");
+
+        private final String displayName;
+        private final String description;
+
+        BattleMode(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+
+        public String getDisplayName() { return displayName; }
+        public String getDescription() { return description; }
+    }
 
     @Override
     public void onEnable() {
@@ -34,7 +53,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         });
     }
 
-    // 1. GŁÓWNE MENU PODWÓJNEJ SKRZYNKI
+    // 1. GŁÓWNE MENU
     public void openMainMenu(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, "§8Bitwy Skrzynek - Lista");
 
@@ -58,7 +77,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // Wyświetlanie dołączalnych bitew
         int slotIndex = 0;
         for (BattleLobby lobby : activeLobbies.values()) {
             if (!lobby.started && !lobby.starting && lobby.players.size() < 4) {
@@ -70,6 +88,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     meta.setDisplayName("§aBitwa gracza: " + lobby.ownerName);
                     meta.setLore(Arrays.asList(
                         "§7Skrzynka: §e" + lobby.caseName,
+                        "§7Tryb: §d" + lobby.mode.getDisplayName(),
                         "§7Ilość skrzynek: §b" + lobby.caseAmount,
                         "§7Gracze: §a" + lobby.players.size() + "/4",
                         "",
@@ -81,7 +100,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // Prawy górny róg (Slot 8) - Oglądaj trwające bitwy
+        // Slot 8 - Oglądaj
         ItemStack watchItem = new ItemStack(Material.ENDER_EYE);
         ItemMeta watchMeta = watchItem.getItemMeta();
         if (watchMeta != null) {
@@ -94,7 +113,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
         gui.setItem(8, watchItem);
 
-        // Lewy dolny róg (Slot 45) - Diamenty
+        // Slot 45 - Diamenty
         int diamonds = countDiamonds(player);
         ItemStack emeraldBlock = new ItemStack(Material.EMERALD_BLOCK);
         ItemMeta emMeta = emeraldBlock.getItemMeta();
@@ -108,7 +127,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
         gui.setItem(45, emeraldBlock);
 
-        // Prawy dolny róg (Slot 53) - Stwórz bitwę
+        // Slot 53 - Stwórz bitwę
         ItemStack createPaper = new ItemStack(Material.PAPER);
         ItemMeta paperMeta = createPaper.getItemMeta();
         if (paperMeta != null) {
@@ -124,7 +143,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // MENU OGLĄDANIA TRWAJĄCYCH BITEW
+    // MENU OGLĄDANIA
     public void openActiveBattlesMenu(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, "§8Trwające Bitwy (Widz)");
 
@@ -151,6 +170,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     meta.setDisplayName("§eBitwa w trakcie: " + lobby.ownerName);
                     meta.setLore(Arrays.asList(
                         "§7Skrzynka: §e" + lobby.caseName,
+                        "§7Tryb: §d" + lobby.mode.getDisplayName(),
                         "§7Ilość skrzynek: §b" + lobby.caseAmount,
                         "§7Uczestnicy: §a" + lobby.players.size() + " graczy",
                         "",
@@ -165,7 +185,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // MENU WYBORU SKRZYNKI
+    // 2. KROK 1: WYBÓR SKRZYNKI
     public void openCaseSelectionMenu(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, "§8Wybierz skrzynkę do bitwy");
         ConfigurationSection cs = getConfig().getConfigurationSection("cases");
@@ -196,7 +216,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 meta.setLore(Arrays.asList(
                     "§7Koszt za 1 skrzynkę: §b" + cost + " Diamentów",
                     "",
-                    "§eKliknij, aby wybrać ilość skrzynek!"
+                    "§eKliknij, aby wybrać tryb gry!"
                 ));
                 item.setItemMeta(meta);
             }
@@ -205,9 +225,57 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // MENU WYBORU ILOSCI SKRZYNIEK (1-15)
-    public void openAmountSelectionMenu(Player player, String caseName) {
+    // 3. KROK 2: WYBÓR TRYBU
+    public void openModeSelectionMenu(Player player, String caseName) {
         selectedCaseName.put(player.getUniqueId(), caseName);
+        Inventory gui = Bukkit.createInventory(null, 27, "§8Wybierz tryb bitwy");
+
+        ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta fillerMeta = filler.getItemMeta();
+        if (fillerMeta != null) {
+            fillerMeta.setDisplayName(" ");
+            filler.setItemMeta(fillerMeta);
+        }
+        for (int i = 0; i < 27; i++) {
+            gui.setItem(i, filler);
+        }
+
+        // Classic (Slot 10)
+        gui.setItem(10, createModeItem(Material.DIAMOND, "§a§lCLASSIC", BattleMode.CLASSIC));
+
+        // Underdog (Slot 12)
+        gui.setItem(12, createModeItem(Material.LEATHER_BOOTS, "§c§lUNDERDOG", BattleMode.UNDERDOG));
+
+        // Point Rush (Slot 14)
+        gui.setItem(14, createModeItem(Material.GOLDEN_SWORD, "§e§lPOINT RUSH", BattleMode.POINT_RUSH));
+
+        // Terminal (Slot 16)
+        gui.setItem(16, createModeItem(Material.TNT, "§b§lTERMINAL", BattleMode.TERMINAL));
+
+        player.openInventory(gui);
+    }
+
+    private ItemStack createModeItem(Material mat, String title, BattleMode mode) {
+        ItemStack item = new ItemStack(mat);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(title);
+            meta.setLore(Arrays.asList(
+                mode.getDescription(),
+                "",
+                "§eKliknij, aby wybrać ten tryb!"
+            ));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    // 4. KROK 3: WYBÓR ILOSCI SKRZYNIEK (1-15)
+    public void openAmountSelectionMenu(Player player) {
+        String caseName = selectedCaseName.get(player.getUniqueId());
+        BattleMode mode = selectedMode.get(player.getUniqueId());
+        if (caseName == null || mode == null) return;
+
         Inventory gui = Bukkit.createInventory(null, 27, "§8Wybierz ilość skrzynek (1-15)");
 
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
@@ -228,9 +296,10 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             if (meta != null) {
                 meta.setDisplayName("§a§l" + i + " Skrzynek");
                 meta.setLore(Arrays.asList(
+                    "§7Tryb: §d" + mode.getDisplayName(),
                     "§7Koszt całkowity: §b" + (singleCost * i) + " Diamentów",
                     "",
-                    "§eKliknij, aby utworzyć bitwę o " + i + " skrzynek!"
+                    "§eKliknij, aby utworzyć bitwę!"
                 ));
                 item.setItemMeta(meta);
             }
@@ -249,15 +318,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             event.setCancelled(true);
             int slot = event.getRawSlot();
 
-            if (slot == 8) {
-                openActiveBattlesMenu(player);
-                return;
-            }
-
-            if (slot == 53) {
-                openCaseSelectionMenu(player);
-                return;
-            }
+            if (slot == 8) { openActiveBattlesMenu(player); return; }
+            if (slot == 53) { openCaseSelectionMenu(player); return; }
 
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && clicked.getType() == Material.CHEST && clicked.hasItemMeta()) {
@@ -291,7 +353,19 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             if (clicked == null || clicked.getType() != Material.CHEST) return;
 
             String caseName = clicked.getItemMeta().getDisplayName();
-            openAmountSelectionMenu(player, caseName);
+            openModeSelectionMenu(player, caseName);
+
+        } else if (title.equals("§8Wybierz tryb bitwy")) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+
+            if (slot == 10) selectedMode.put(player.getUniqueId(), BattleMode.CLASSIC);
+            else if (slot == 12) selectedMode.put(player.getUniqueId(), BattleMode.UNDERDOG);
+            else if (slot == 14) selectedMode.put(player.getUniqueId(), BattleMode.POINT_RUSH);
+            else if (slot == 16) selectedMode.put(player.getUniqueId(), BattleMode.TERMINAL);
+            else return;
+
+            openAmountSelectionMenu(player);
 
         } else if (title.equals("§8Wybierz ilość skrzynek (1-15)")) {
             event.setCancelled(true);
@@ -300,7 +374,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
             int amount = clicked.getAmount();
             String caseName = selectedCaseName.get(player.getUniqueId());
-            if (caseName == null) return;
+            BattleMode mode = selectedMode.get(player.getUniqueId());
+            if (caseName == null || mode == null) return;
 
             int totalCost = getCaseCost(caseName) * amount;
 
@@ -312,7 +387,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
             removeDiamonds(player, totalCost);
             player.sendMessage("§aPobrano §b" + totalCost + " §adiamentów za " + amount + " skrzynek.");
-            createNewLobby(player, caseName, amount);
+            createNewLobby(player, caseName, mode, amount);
 
         } else if (title.startsWith("§8Poczekalnia Bitwy:")) {
             event.setCancelled(true);
@@ -371,8 +446,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private void createNewLobby(Player player, String caseName, int caseAmount) {
-        BattleLobby lobby = new BattleLobby(player.getName(), caseName, caseAmount);
+    private void createNewLobby(Player player, String caseName, BattleMode mode, int caseAmount) {
+        BattleLobby lobby = new BattleLobby(player.getName(), caseName, mode, caseAmount);
         lobby.players.add(player);
         activeLobbies.put(player.getUniqueId(), lobby);
         openLobbyGUI(lobby);
@@ -439,7 +514,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             if (lobby.starting) {
                 meta.setDisplayName("§e§lSTARTOWANIE GIERKI...");
             } else {
-                meta.setDisplayName("§a§lSTART (" + lobby.caseAmount + " Skrzynek) §7[" + lobby.players.size() + "/4]");
+                meta.setDisplayName("§a§lSTART (" + lobby.caseAmount + " Skrzynek, " + lobby.mode.getDisplayName() + ") §7[" + lobby.players.size() + "/4]");
             }
             start.setItemMeta(meta);
         }
@@ -489,16 +564,17 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
 
         int playerCount = lobby.players.size();
-        int[] playerScores = new int[playerCount];
+        int[] playerScores = new int[playerCount]; // Punkty / Łączna wartość
+        int[] terminalValues = new int[playerCount]; // Wartość z ostatniej skrzynki
         List<List<ItemStack>> wonItems = new ArrayList<>();
         for (int i = 0; i < playerCount; i++) {
             wonItems.add(new ArrayList<>());
         }
 
-        runRound(lobby, battleGui, 1, lobby.caseAmount, playerScores, wonItems);
+        runRound(lobby, battleGui, 1, lobby.caseAmount, playerScores, terminalValues, wonItems);
     }
 
-    private void runRound(BattleLobby lobby, Inventory battleGui, int currentRound, int totalRounds, int[] playerScores, List<List<ItemStack>> wonItems) {
+    private void runRound(BattleLobby lobby, Inventory battleGui, int currentRound, int totalRounds, int[] playerScores, int[] terminalValues, List<List<ItemStack>> wonItems) {
         int playerCount = lobby.players.size();
         ItemStack[][] columns = new ItemStack[playerCount][3];
 
@@ -512,7 +588,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         ItemStack sign = new ItemStack(Material.OAK_HANGING_SIGN);
         ItemMeta signMeta = sign.getItemMeta();
         if (signMeta != null) {
-            signMeta.setDisplayName("§e§lRUNDA " + currentRound + "/" + totalRounds);
+            signMeta.setDisplayName("§e§lRUNDA " + currentRound + "/" + totalRounds + " §7(" + lobby.mode.getDisplayName() + ")");
             sign.setItemMeta(signMeta);
         }
 
@@ -538,19 +614,19 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 battleGui.setItem(27, sign);
                 battleGui.setItem(35, sign);
 
-                int leadingPlayerIndex = getLeaderIndex(playerScores);
+                int leadingPlayerIndex = getLeaderIndex(lobby.mode, playerScores, terminalValues);
 
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                     Player p = lobby.players.get(pIndex);
 
-                    if (pIndex == leadingPlayerIndex && playerScores[leadingPlayerIndex] > 0) {
+                    if (pIndex == leadingPlayerIndex) {
                         battleGui.setItem(2 + pIndex, emeraldBlock);
                     }
 
                     ItemStack head = new ItemStack(Material.PLAYER_HEAD);
                     ItemMeta headMeta = head.getItemMeta();
                     if (headMeta != null) {
-                        headMeta.setDisplayName("§b" + p.getName() + " §7(Suma: §a" + playerScores[pIndex] + "§7)");
+                        headMeta.setDisplayName("§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
                         head.setItemMeta(headMeta);
                     }
                     battleGui.setItem(11 + pIndex, head);
@@ -577,17 +653,43 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 if (ticks >= maxTicks) {
                     this.cancel();
 
+                    int[] roundItemValues = new int[playerCount];
+                    int maxRoundValue = -1;
+
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                         ItemStack won = columns[pIndex][1];
                         if (won != null) {
                             wonItems.get(pIndex).add(won);
-                            playerScores[pIndex] += getItemValue(won);
+                            int val = getItemValue(won);
+                            roundItemValues[pIndex] = val;
+
+                            if (lobby.mode == BattleMode.CLASSIC || lobby.mode == BattleMode.UNDERDOG) {
+                                playerScores[pIndex] += val;
+                            } else if (lobby.mode == BattleMode.TERMINAL) {
+                                if (currentRound == totalRounds) {
+                                    terminalValues[pIndex] = val;
+                                    playerScores[pIndex] = val;
+                                }
+                            }
+
+                            if (val > maxRoundValue) {
+                                maxRoundValue = val;
+                            }
                         }
                     }
 
-                    int newLeader = getLeaderIndex(playerScores);
+                    // Obsługa trybu Point Rush
+                    if (lobby.mode == BattleMode.POINT_RUSH) {
+                        for (int pIndex = 0; pIndex < playerCount; pIndex++) {
+                            if (roundItemValues[pIndex] == maxRoundValue && maxRoundValue > 0) {
+                                playerScores[pIndex]++;
+                            }
+                        }
+                    }
+
+                    int newLeader = getLeaderIndex(lobby.mode, playerScores, terminalValues);
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        if (pIndex == newLeader && playerScores[newLeader] > 0) {
+                        if (pIndex == newLeader) {
                             battleGui.setItem(2 + pIndex, emeraldBlock);
                         } else {
                             battleGui.setItem(2 + pIndex, purpleGlass);
@@ -597,7 +699,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
                         ItemMeta headMeta = head.getItemMeta();
                         if (headMeta != null) {
-                            headMeta.setDisplayName("§b" + p.getName() + " §7(Suma: §a" + playerScores[pIndex] + "§7)");
+                            headMeta.setDisplayName("§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
                             head.setItemMeta(headMeta);
                         }
                         battleGui.setItem(11 + pIndex, head);
@@ -607,9 +709,9 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                         @Override
                         public void run() {
                             if (currentRound < totalRounds) {
-                                runRound(lobby, battleGui, currentRound + 1, totalRounds, playerScores, wonItems);
+                                runRound(lobby, battleGui, currentRound + 1, totalRounds, playerScores, terminalValues, wonItems);
                             } else {
-                                finishBattle(lobby, playerScores, wonItems);
+                                finishBattle(lobby, playerScores, terminalValues, wonItems);
                             }
                         }
                     }.runTaskLater(CaseBattlePlugin.this, 60L);
@@ -618,17 +720,31 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 4L);
     }
 
-    private int getLeaderIndex(int[] scores) {
-        int maxIndex = 0;
-        for (int i = 1; i < scores.length; i++) {
-            if (scores[i] > scores[maxIndex]) {
-                maxIndex = i;
+    private int getLeaderIndex(BattleMode mode, int[] scores, int[] terminalValues) {
+        int bestIndex = 0;
+
+        if (mode == BattleMode.UNDERDOG) {
+            for (int i = 1; i < scores.length; i++) {
+                if (scores[i] < scores[bestIndex]) {
+                    bestIndex = i;
+                }
+            }
+        } else if (mode == BattleMode.TERMINAL) {
+            for (int i = 1; i < terminalValues.length; i++) {
+                if (terminalValues[i] > terminalValues[bestIndex]) {
+                    bestIndex = i;
+                }
+            }
+        } else { // CLASSIC oraz POINT_RUSH
+            for (int i = 1; i < scores.length; i++) {
+                if (scores[i] > scores[bestIndex]) {
+                    bestIndex = i;
+                }
             }
         }
-        return maxIndex;
+        return bestIndex;
     }
 
-    // WARTOŚĆ PUNKTOWA PRZEDMIOTÓW DLA LIDERBORDA
     private int getItemValue(ItemStack item) {
         if (item == null) return 0;
 
@@ -674,12 +790,12 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return new ItemStack(Material.DIRT);
     }
 
-    private void finishBattle(BattleLobby lobby, int[] playerScores, List<List<ItemStack>> wonItems) {
-        int winnerIndex = getLeaderIndex(playerScores);
+    private void finishBattle(BattleLobby lobby, int[] playerScores, int[] terminalValues, List<List<ItemStack>> wonItems) {
+        int winnerIndex = getLeaderIndex(lobby.mode, playerScores, terminalValues);
         Player winner = lobby.players.get(winnerIndex);
 
         for (Player p : lobby.players) {
-            p.sendMessage("§a★ Bitwę wygrał gracz: §e" + winner.getName() + " §a z punktacją §b" + playerScores[winnerIndex] + "§a!");
+            p.sendMessage("§a★ Bitwę w trybie §d" + lobby.mode.getDisplayName() + " §awygrał gracz: §e" + winner.getName() + "§a!");
             p.sendMessage("§aZgarnia wszystkie przedmioty ze wszystkich " + lobby.caseAmount + " skrzynek!");
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         }
@@ -696,15 +812,17 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     private static class BattleLobby {
         String ownerName;
         String caseName;
+        BattleMode mode;
         int caseAmount;
         List<Player> players = new ArrayList<>();
         boolean started = false;
         boolean starting = false;
         Inventory activeGui = null;
 
-        BattleLobby(String ownerName, String caseName, int caseAmount) {
+        BattleLobby(String ownerName, String caseName, BattleMode mode, int caseAmount) {
             this.ownerName = ownerName;
             this.caseName = caseName;
+            this.mode = mode;
             this.caseAmount = caseAmount;
         }
     }

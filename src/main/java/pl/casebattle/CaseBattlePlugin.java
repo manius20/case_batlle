@@ -686,7 +686,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                     Player p = lobby.players.get(pIndex);
-
                     int baseColumn = 1 + pIndex;
 
                     if (leaders.contains(pIndex) && leaders.size() == 1) {
@@ -723,8 +722,10 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                         ItemStack won = columns[pIndex][2]; 
-                        if (won != null) {
-                            wonItems.get(pIndex).add(won);
+                        if (won != null && won.getType() != Material.AIR) {
+                            // Zapisujemy klon wygranego przedmiotu do listy nagród
+                            wonItems.get(pIndex).add(won.clone());
+
                             int val = getItemValue(won);
                             roundItemValues[pIndex] = val;
 
@@ -876,19 +877,73 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 2L);
     }
 
+    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW
     private int getItemValue(ItemStack item) {
-        if (item == null) return 0;
+        if (item == null || item.getType() == Material.AIR) return 0;
 
-        int valuePerItem = switch (item.getType()) {
-            case DIAMOND -> 100;
-            case IRON_INGOT -> 10;
-            case GOLD_INGOT -> 25;
-            case EMERALD -> 50;
-            case NETHERITE_INGOT -> 250;
-            default -> 1;
-        };
+        Material type = item.getType();
+        int amount = item.getAmount();
 
-        return valuePerItem * item.getAmount();
+        // 1. Specjalna obsługa potek na siłę (Strength)
+        if (type == Material.POTION || type == Material.SPLASH_POTION || type == Material.LINGERING_POTION) {
+            if (item.getItemMeta() instanceof PotionMeta potionMeta) {
+                if (potionMeta.getBasePotionType() == PotionType.STRENGTH 
+                        || potionMeta.getBasePotionType() == PotionType.STRONG_STRENGTH 
+                        || potionMeta.getBasePotionType() == PotionType.LONG_STRENGTH) {
+                    return 265;
+                }
+            }
+        }
+
+        // 2. Punktacja zależna od konkretnych ilości i materiałów
+        switch (type) {
+            case DIRT:
+                if (amount >= 64) return 10;
+                break;
+            case DIAMOND_HELMET:
+            case DIAMOND_CHESTPLATE:
+            case DIAMOND_LEGGINGS:
+            case DIAMOND_BOOTS:
+                return 75;
+            case DIAMOND_SWORD:
+                return 100;
+            case DIAMOND_PICKAXE:
+                return 150;
+            case DIAMOND:
+                if (amount >= 64) return 135;
+                break;
+            case NETHERITE_INGOT:
+            case NETHERITE_SCRAP:
+            case NETHERITE_BLOCK:
+                return 375;
+            case GOLDEN_APPLE:
+                if (amount >= 32) return 240;
+                if (amount >= 16) return 160;
+                if (amount >= 8) return 80;
+                return 10;
+            case ENCHANTED_GOLDEN_APPLE:
+                return 650;
+            case ENDER_PEARL:
+                if (amount >= 16) return 185;
+                break;
+            case COOKED_BEEF: // Steak
+                if (amount >= 64) return 55;
+                break;
+            case WIND_CHARGE:
+                if (amount >= 64) return 85;
+                break;
+            case OBSIDIAN:
+                if (amount >= 64) return 65;
+                break;
+            case GOLD_INGOT:
+                if (amount >= 64) return 35;
+                break;
+            default:
+                break;
+        }
+
+        // Domyślny przelicznik awaryjny (jeśli przedmiot nie ma specjalnej reguły)
+        return amount * 2;
     }
 
     private ItemStack getRandomItemFromConfig(String caseDisplayName) {
@@ -958,9 +1013,15 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         }
 
+        // Wydawanie dropu zwycięzcy (oraz wyrzucanie pod nogi, gdy ekwipunek jest pełny)
         for (List<ItemStack> list : wonItems) {
             for (ItemStack item : list) {
-                winner.getInventory().addItem(item);
+                if (item != null && item.getType() != Material.AIR) {
+                    HashMap<Integer, ItemStack> overflow = winner.getInventory().addItem(item);
+                    for (ItemStack drop : overflow.values()) {
+                        winner.getWorld().dropItemNaturally(winner.getLocation(), drop);
+                    }
+                }
             }
         }
 

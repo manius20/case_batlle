@@ -1,0 +1,38 @@
+settings:
+  min-players: 2
+  max-players: 4
+
+cases:
+  tania_skrzynka:
+    display-name: "&aTania Skrzynka"
+    cost: 100.0
+    items:
+      - material: DIAMOND
+        amount: 1
+        chance: 10.0
+        display-name: "&bDiament"
+      - material: IRON_INGOT
+        amount: 5
+        chance: 40.0
+        display-name: "&fŻelazo x5"
+      - material: COAL
+        amount: 16
+        chance: 50.0
+        display-name: "&8Węgiel x16"
+
+  droga_skrzynka:
+    display-name: "&6Złota Skrzynka"
+    cost: 500.0
+    items:
+      - material: NETHERITE_INGOT
+        amount: 1
+        chance: 5.0
+        display-name: "&dSztabka Netheritu"
+      - material: GOLDEN_APPLE
+        amount: 2
+        chance: 25.0
+        display-name: "&eZłote Jabłko x2"
+      - material: GOLD_INGOT
+        amount: 10
+        chance: 70.0
+        display-name: "&eZłoto x10"

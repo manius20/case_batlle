@@ -11,6 +11,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -51,6 +52,18 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
             return true;
         });
+    }
+
+    // Pomocnicza metoda do tworzenia główki gracza ze skinem
+    private ItemStack getPlayerHead(Player player, String displayName) {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+        if (meta != null) {
+            meta.setOwningPlayer(player);
+            meta.setDisplayName(displayName);
+            head.setItemMeta(meta);
+        }
+        return head;
     }
 
     // 1. GŁÓWNE MENU
@@ -100,7 +113,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // Slot 8 - Oglądaj
         ItemStack watchItem = new ItemStack(Material.ENDER_EYE);
         ItemMeta watchMeta = watchItem.getItemMeta();
         if (watchMeta != null) {
@@ -113,7 +125,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
         gui.setItem(8, watchItem);
 
-        // Slot 45 - Diamenty
         int diamonds = countDiamonds(player);
         ItemStack emeraldBlock = new ItemStack(Material.EMERALD_BLOCK);
         ItemMeta emMeta = emeraldBlock.getItemMeta();
@@ -127,7 +138,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
         gui.setItem(45, emeraldBlock);
 
-        // Slot 53 - Stwórz bitwę
         ItemStack createPaper = new ItemStack(Material.PAPER);
         ItemMeta paperMeta = createPaper.getItemMeta();
         if (paperMeta != null) {
@@ -143,7 +153,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // MENU OGLĄDANIA
     public void openActiveBattlesMenu(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, "§8Trwające Bitwy (Widz)");
 
@@ -185,7 +194,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // 2. KROK 1: WYBÓR SKRZYNKI
     public void openCaseSelectionMenu(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, "§8Wybierz skrzynkę do bitwy");
         ConfigurationSection cs = getConfig().getConfigurationSection("cases");
@@ -225,7 +233,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // 3. KROK 2: WYBÓR TRYBU
     public void openModeSelectionMenu(Player player, String caseName) {
         selectedCaseName.put(player.getUniqueId(), caseName);
         Inventory gui = Bukkit.createInventory(null, 27, "§8Wybierz tryb bitwy");
@@ -240,16 +247,9 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             gui.setItem(i, filler);
         }
 
-        // Classic (Slot 10)
         gui.setItem(10, createModeItem(Material.DIAMOND, "§a§lCLASSIC", BattleMode.CLASSIC));
-
-        // Underdog (Slot 12)
         gui.setItem(12, createModeItem(Material.LEATHER_BOOTS, "§c§lUNDERDOG", BattleMode.UNDERDOG));
-
-        // Point Rush (Slot 14)
         gui.setItem(14, createModeItem(Material.GOLDEN_SWORD, "§e§lPOINT RUSH", BattleMode.POINT_RUSH));
-
-        // Terminal (Slot 16)
         gui.setItem(16, createModeItem(Material.TNT, "§b§lTERMINAL", BattleMode.TERMINAL));
 
         player.openInventory(gui);
@@ -270,7 +270,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return item;
     }
 
-    // 4. KROK 3: WYBÓR ILOSCI SKRZYNIEK (1-15)
     public void openAmountSelectionMenu(Player player) {
         String caseName = selectedCaseName.get(player.getUniqueId());
         BattleMode mode = selectedMode.get(player.getUniqueId());
@@ -397,7 +396,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     startCountdown(lobby);
                 }
             }
-        } else if (title.startsWith("§8Losowanie Skrzynek...")) {
+        } else if (title.startsWith("§8Losowanie Skrzynek...") || title.startsWith("§8Dogrywka (Tie-Break)...")) {
             event.setCancelled(true);
         }
     }
@@ -499,12 +498,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         for (int i = 0; i < lobby.players.size(); i++) {
             Player p = lobby.players.get(i);
-            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-            ItemMeta meta = head.getItemMeta();
-            if (meta != null) {
-                meta.setDisplayName("§aGracz: " + p.getName());
-                head.setItemMeta(meta);
-            }
+            ItemStack head = getPlayerHead(p, "§aGracz: " + p.getName());
             gui.setItem(10 + i, head);
         }
 
@@ -564,8 +558,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
 
         int playerCount = lobby.players.size();
-        int[] playerScores = new int[playerCount]; // Punkty / Łączna wartość
-        int[] terminalValues = new int[playerCount]; // Wartość z ostatniej skrzynki
+        int[] playerScores = new int[playerCount];
+        int[] terminalValues = new int[playerCount];
         List<List<ItemStack>> wonItems = new ArrayList<>();
         for (int i = 0; i < playerCount; i++) {
             wonItems.add(new ArrayList<>());
@@ -614,21 +608,16 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 battleGui.setItem(27, sign);
                 battleGui.setItem(35, sign);
 
-                int leadingPlayerIndex = getLeaderIndex(lobby.mode, playerScores, terminalValues);
+                List<Integer> leaders = getLeadersIndices(lobby.mode, playerScores, terminalValues);
 
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                     Player p = lobby.players.get(pIndex);
 
-                    if (pIndex == leadingPlayerIndex) {
+                    if (leaders.contains(pIndex) && leaders.size() == 1) {
                         battleGui.setItem(2 + pIndex, emeraldBlock);
                     }
 
-                    ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-                    ItemMeta headMeta = head.getItemMeta();
-                    if (headMeta != null) {
-                        headMeta.setDisplayName("§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
-                        head.setItemMeta(headMeta);
-                    }
+                    ItemStack head = getPlayerHead(p, "§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
                     battleGui.setItem(11 + pIndex, head);
                 }
 
@@ -678,7 +667,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                         }
                     }
 
-                    // Obsługa trybu Point Rush
                     if (lobby.mode == BattleMode.POINT_RUSH) {
                         for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                             if (roundItemValues[pIndex] == maxRoundValue && maxRoundValue > 0) {
@@ -687,21 +675,16 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                         }
                     }
 
-                    int newLeader = getLeaderIndex(lobby.mode, playerScores, terminalValues);
+                    List<Integer> newLeaders = getLeadersIndices(lobby.mode, playerScores, terminalValues);
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        if (pIndex == newLeader) {
+                        if (newLeaders.contains(pIndex) && newLeaders.size() == 1) {
                             battleGui.setItem(2 + pIndex, emeraldBlock);
                         } else {
                             battleGui.setItem(2 + pIndex, purpleGlass);
                         }
 
                         Player p = lobby.players.get(pIndex);
-                        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-                        ItemMeta headMeta = head.getItemMeta();
-                        if (headMeta != null) {
-                            headMeta.setDisplayName("§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
-                            head.setItemMeta(headMeta);
-                        }
+                        ItemStack head = getPlayerHead(p, "§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
                         battleGui.setItem(11 + pIndex, head);
                     }
 
@@ -711,7 +694,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                             if (currentRound < totalRounds) {
                                 runRound(lobby, battleGui, currentRound + 1, totalRounds, playerScores, terminalValues, wonItems);
                             } else {
-                                finishBattle(lobby, playerScores, terminalValues, wonItems);
+                                checkBattleWinnerOrTie(lobby, playerScores, terminalValues, wonItems);
                             }
                         }
                     }.runTaskLater(CaseBattlePlugin.this, 60L);
@@ -720,29 +703,100 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 4L);
     }
 
-    private int getLeaderIndex(BattleMode mode, int[] scores, int[] terminalValues) {
-        int bestIndex = 0;
+    private List<Integer> getLeadersIndices(BattleMode mode, int[] scores, int[] terminalValues) {
+        List<Integer> leaders = new ArrayList<>();
+        int[] targetArray = (mode == BattleMode.TERMINAL) ? terminalValues : scores;
 
-        if (mode == BattleMode.UNDERDOG) {
-            for (int i = 1; i < scores.length; i++) {
-                if (scores[i] < scores[bestIndex]) {
-                    bestIndex = i;
-                }
-            }
-        } else if (mode == BattleMode.TERMINAL) {
-            for (int i = 1; i < terminalValues.length; i++) {
-                if (terminalValues[i] > terminalValues[bestIndex]) {
-                    bestIndex = i;
-                }
-            }
-        } else { // CLASSIC oraz POINT_RUSH
-            for (int i = 1; i < scores.length; i++) {
-                if (scores[i] > scores[bestIndex]) {
-                    bestIndex = i;
-                }
+        if (targetArray.length == 0) return leaders;
+
+        int bestValue = targetArray[0];
+        for (int val : targetArray) {
+            if (mode == BattleMode.UNDERDOG) {
+                if (val < bestValue) bestValue = val;
+            } else {
+                if (val > bestValue) bestValue = val;
             }
         }
-        return bestIndex;
+
+        for (int i = 0; i < targetArray.length; i++) {
+            if (targetArray[i] == bestValue) {
+                leaders.add(i);
+            }
+        }
+        return leaders;
+    }
+
+    private void checkBattleWinnerOrTie(BattleLobby lobby, int[] playerScores, int[] terminalValues, List<List<ItemStack>> wonItems) {
+        List<Integer> tiedWinners = getLeadersIndices(lobby.mode, playerScores, terminalValues);
+
+        if (tiedWinners.size() == 1) {
+            finishBattle(lobby, tiedWinners.get(0), wonItems, false);
+        } else {
+            runTieBreaker(lobby, tiedWinners, wonItems);
+        }
+    }
+
+    private void runTieBreaker(BattleLobby lobby, List<Integer> tiedIndices, List<List<ItemStack>> wonItems) {
+        Inventory battleGui = lobby.activeGui;
+        if (battleGui == null) return;
+
+        for (Player p : lobby.players) {
+            p.sendMessage("§e★ Mamy REMIS! Rozpoczyna się losowanie dogrywki (Tie-Break)...");
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+        }
+
+        ItemStack emeraldBlock = new ItemStack(Material.EMERALD_BLOCK);
+        ItemMeta emMeta = emeraldBlock.getItemMeta();
+        if (emMeta != null) {
+            emMeta.setDisplayName("§a§lLOSOWANIE ZWYCIĘZCY");
+            emeraldBlock.setItemMeta(emMeta);
+        }
+
+        ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = purpleGlass.getItemMeta();
+        if (glassMeta != null) {
+            glassMeta.setDisplayName(" ");
+            purpleGlass.setItemMeta(glassMeta);
+        }
+
+        new BukkitRunnable() {
+            int ticks = 0;
+            final int maxTicks = 30; // 3 sekundy losowania
+
+            @Override
+            public void run() {
+                ticks++;
+
+                for (int i = 0; i < lobby.players.size(); i++) {
+                    battleGui.setItem(2 + i, purpleGlass);
+                }
+
+                int highlightedPlayerIndex = tiedIndices.get(random.nextInt(tiedIndices.size()));
+                battleGui.setItem(2 + highlightedPlayerIndex, emeraldBlock);
+
+                for (Player p : lobby.players) {
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.8f, 1.5f);
+                }
+
+                if (ticks >= maxTicks) {
+                    this.cancel();
+
+                    int finalWinnerIndex = tiedIndices.get(random.nextInt(tiedIndices.size()));
+
+                    for (int i = 0; i < lobby.players.size(); i++) {
+                        battleGui.setItem(2 + i, purpleGlass);
+                    }
+                    battleGui.setItem(2 + finalWinnerIndex, emeraldBlock);
+
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            finishBattle(lobby, finalWinnerIndex, wonItems, true);
+                        }
+                    }.runTaskLater(CaseBattlePlugin.this, 20L);
+                }
+            }
+        }.runTaskTimer(this, 0L, 2L);
     }
 
     private int getItemValue(ItemStack item) {
@@ -790,12 +844,15 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return new ItemStack(Material.DIRT);
     }
 
-    private void finishBattle(BattleLobby lobby, int[] playerScores, int[] terminalValues, List<List<ItemStack>> wonItems) {
-        int winnerIndex = getLeaderIndex(lobby.mode, playerScores, terminalValues);
+    private void finishBattle(BattleLobby lobby, int winnerIndex, List<List<ItemStack>> wonItems, boolean tieBroken) {
         Player winner = lobby.players.get(winnerIndex);
 
         for (Player p : lobby.players) {
-            p.sendMessage("§a★ Bitwę w trybie §d" + lobby.mode.getDisplayName() + " §awygrał gracz: §e" + winner.getName() + "§a!");
+            if (tieBroken) {
+                p.sendMessage("§a★ Bitwę po dogrywce (Tie-Break) wygrał gracz: §e" + winner.getName() + "§a!");
+            } else {
+                p.sendMessage("§a★ Bitwę w trybie §d" + lobby.mode.getDisplayName() + " §awygrał gracz: §e" + winner.getName() + "§a!");
+            }
             p.sendMessage("§aZgarnia wszystkie przedmioty ze wszystkich " + lobby.caseAmount + " skrzynek!");
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         }

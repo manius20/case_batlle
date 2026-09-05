@@ -25,21 +25,24 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     private final Random random = new Random();
 
     public enum BattleMode {
-        CLASSIC("Classic", "§aWygrywa gracz z największą sumą wartości przedmiotów."),
-        UNDERDOG("Underdog", "§cWygrywa gracz z NAJMNIEJSZĄ sumą wartości przedmiotów."),
-        POINT_RUSH("Point Rush", "§eKażda wygrana runda daje 1 pkt. Wygrywa gracz z największą ilością punktów."),
-        TERMINAL("Terminal", "§bO wygranej decyduje WYŁĄCZNIE drop z ostatniej skrzynki.");
+        CLASSIC("Classic", "§aWygrywa gracz z największą sumą wartości przedmiotów.", Material.DIAMOND),
+        UNDERDOG("Underdog", "§cWygrywa gracz z NAJMNIEJSZĄ sumą wartości przedmiotów.", Material.LEATHER_BOOTS),
+        POINT_RUSH("Point Rush", "§eKażda wygrana runda daje 1 pkt. Wygrywa gracz z największą ilością punktów.", Material.GOLDEN_SWORD),
+        TERMINAL("Terminal", "§bO wygranej decyduje WYŁĄCZNIE drop z ostatniej skrzynki.", Material.TNT);
 
         private final String displayName;
         private final String description;
+        private final Material icon;
 
-        BattleMode(String displayName, String description) {
+        BattleMode(String displayName, String description, Material icon) {
             this.displayName = displayName;
             this.description = description;
+            this.icon = icon;
         }
 
         public String getDisplayName() { return displayName; }
         public String getDescription() { return description; }
+        public Material getIcon() { return icon; }
     }
 
     public static class BattleLobby {
@@ -134,7 +137,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         int slotIndex = 0;
         for (BattleLobby lobby : activeLobbies.values()) {
-            if (!lobby.started && !lobby.starting && lobby.players.size() < 4) {
+            // Zwiększono limit w liście do 6 graczy
+            if (!lobby.started && !lobby.starting && lobby.players.size() < 6) {
                 if (slotIndex >= centerSlots.size()) break;
 
                 ItemStack lobbyItem = new ItemStack(Material.CHEST);
@@ -145,7 +149,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                         "§7Skrzynka: §e" + lobby.caseName,
                         "§7Tryb: §d" + lobby.mode.getDisplayName(),
                         "§7Ilość skrzynek: §b" + lobby.caseAmount,
-                        "§7Gracze: §a" + lobby.players.size() + "/4",
+                        "§7Gracze: §a" + lobby.players.size() + "/6",
                         "",
                         "§eKliknij, aby dołączyć do tej bitwy!"
                     ));
@@ -289,10 +293,10 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             gui.setItem(i, filler);
         }
 
-        gui.setItem(10, createModeItem(Material.DIAMOND, "§a§lCLASSIC", BattleMode.CLASSIC));
-        gui.setItem(12, createModeItem(Material.LEATHER_BOOTS, "§c§lUNDERDOG", BattleMode.UNDERDOG));
-        gui.setItem(14, createModeItem(Material.GOLDEN_SWORD, "§e§lPOINT RUSH", BattleMode.POINT_RUSH));
-        gui.setItem(16, createModeItem(Material.TNT, "§b§lTERMINAL", BattleMode.TERMINAL));
+        gui.setItem(10, createModeItem(BattleMode.CLASSIC.getIcon(), "§a§lCLASSIC", BattleMode.CLASSIC));
+        gui.setItem(12, createModeItem(BattleMode.UNDERDOG.getIcon(), "§c§lUNDERDOG", BattleMode.UNDERDOG));
+        gui.setItem(14, createModeItem(BattleMode.POINT_RUSH.getIcon(), "§e§lPOINT RUSH", BattleMode.POINT_RUSH));
+        gui.setItem(16, createModeItem(BattleMode.TERMINAL.getIcon(), "§b§lTERMINAL", BattleMode.TERMINAL));
 
         player.openInventory(gui);
     }
@@ -312,12 +316,13 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return item;
     }
 
+    // Domyślne podwójne GUI dla skrzynek od 1 do 35 z ikona trybu w prawym górnym rogu
     public void openAmountSelectionMenu(Player player) {
         String caseName = selectedCaseName.get(player.getUniqueId());
         BattleMode mode = selectedMode.get(player.getUniqueId());
         if (caseName == null || mode == null) return;
 
-        Inventory gui = Bukkit.createInventory(null, 27, "§8Wybierz ilość skrzynek (1-15)");
+        Inventory gui = Bukkit.createInventory(null, 54, "§8Wybierz ilość skrzynek (1-35)");
 
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta fillerMeta = filler.getItemMeta();
@@ -325,14 +330,29 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             fillerMeta.setDisplayName(" ");
             filler.setItemMeta(fillerMeta);
         }
-        for (int i = 0; i < 27; i++) {
+        for (int i = 0; i < 54; i++) {
             gui.setItem(i, filler);
         }
 
+        // Dodanie ikony wybranego trybu w prawym górnym rogu (Slot 8)
+        ItemStack modeIcon = new ItemStack(mode.getIcon());
+        ItemMeta modeMeta = modeIcon.getItemMeta();
+        if (modeMeta != null) {
+            modeMeta.setDisplayName("§d§lWybrany tryb: " + mode.getDisplayName());
+            modeMeta.setLore(Arrays.asList(
+                mode.getDescription()
+            ));
+            modeIcon.setItemMeta(modeMeta);
+        }
+        gui.setItem(8, modeIcon);
+
         int singleCost = getCaseCost(caseName);
-        int[] slots = {0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15};
-        for (int i = 1; i <= 15; i++) {
-            ItemStack item = new ItemStack(Material.CHEST, i);
+        int currentSlot = 0;
+
+        for (int i = 1; i <= 35; i++) {
+            if (currentSlot == 8) currentSlot++; // Ominięcie slotu ikony trybu
+
+            ItemStack item = new ItemStack(Material.CHEST, Math.min(i, 64));
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
                 meta.setDisplayName("§a§l" + i + " Skrzynek");
@@ -344,7 +364,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 ));
                 item.setItemMeta(meta);
             }
-            gui.setItem(slots[i - 1], item);
+            gui.setItem(currentSlot, item);
+            currentSlot++;
         }
 
         player.openInventory(gui);
@@ -408,12 +429,21 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
             openAmountSelectionMenu(player);
 
-        } else if (title.equals("§8Wybierz ilość skrzynek (1-15)")) {
+        } else if (title.equals("§8Wybierz ilość skrzynek (1-35)")) {
             event.setCancelled(true);
             ItemStack clicked = event.getCurrentItem();
-            if (clicked == null || clicked.getType() != Material.CHEST) return;
+            if (clicked == null || clicked.getType() != Material.CHEST || !clicked.hasItemMeta()) return;
 
-            int amount = clicked.getAmount();
+            // Wyciąganie pełnej ilości z nazwy przedmiotu
+            String name = clicked.getItemMeta().getDisplayName();
+            String cleanAmount = name.replaceAll("[^0-9]", "");
+            int amount;
+            try {
+                amount = Integer.parseInt(cleanAmount);
+            } catch (NumberFormatException e) {
+                return;
+            }
+
             String caseName = selectedCaseName.get(player.getUniqueId());
             BattleMode mode = selectedMode.get(player.getUniqueId());
             if (caseName == null || mode == null) return;
@@ -496,8 +526,9 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
     private void joinLobbyByOwner(Player player, String ownerName) {
         BattleLobby targetLobby = null;
+        // Zwiększono limit dołączania do 6 graczy
         for (BattleLobby lobby : activeLobbies.values()) {
-            if (lobby.ownerName.equalsIgnoreCase(ownerName) && !lobby.started && !lobby.starting && lobby.players.size() < 4) {
+            if (lobby.ownerName.equalsIgnoreCase(ownerName) && !lobby.started && !lobby.starting && lobby.players.size() < 6) {
                 targetLobby = lobby;
                 break;
             }
@@ -521,7 +552,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         openLobbyGUI(targetLobby);
 
-        if (targetLobby.players.size() == 4 && !targetLobby.starting) {
+        // Automatyczne odliczanie, gdy lobby jest pełne (6 graczy)
+        if (targetLobby.players.size() == 6 && !targetLobby.starting) {
             startCountdown(targetLobby);
         }
     }
@@ -538,10 +570,13 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     private void openLobbyGUI(BattleLobby lobby) {
         Inventory gui = Bukkit.createInventory(null, 27, "§8Poczekalnia Bitwy: " + lobby.caseName);
 
+        // Wyświetlanie do 6 główek w lobby
+        int[] slots = {10, 11, 12, 14, 15, 16};
         for (int i = 0; i < lobby.players.size(); i++) {
+            if (i >= slots.length) break;
             Player p = lobby.players.get(i);
             ItemStack head = getPlayerHead(p, "§aGracz: " + p.getName());
-            gui.setItem(10 + i, head);
+            gui.setItem(slots[i], head);
         }
 
         ItemStack start = new ItemStack(Material.EMERALD_BLOCK);
@@ -550,7 +585,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             if (lobby.starting) {
                 meta.setDisplayName("§e§lSTARTOWANIE GIERKI...");
             } else {
-                meta.setDisplayName("§a§lSTART (" + lobby.caseAmount + " Skrzynek, " + lobby.mode.getDisplayName() + ") §7[" + lobby.players.size() + "/4]");
+                meta.setDisplayName("§a§lSTART (" + lobby.caseAmount + " Skrzynek, " + lobby.mode.getDisplayName() + ") §7[" + lobby.players.size() + "/6]");
             }
             start.setItemMeta(meta);
         }
@@ -635,6 +670,14 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             emeraldBlock.setItemMeta(emMeta);
         }
 
+        // Kalkulacja slotów kolumn do 6 graczy na planszy
+        int[] playerBaseColumns = new int[playerCount];
+        if (playerCount <= 4) {
+            for (int i = 0; i < playerCount; i++) playerBaseColumns[i] = 2 + i;
+        } else { // Dla 5 i 6 graczy dynamiczne dopasowanie
+            for (int i = 0; i < playerCount; i++) playerBaseColumns[i] = 1 + i;
+        }
+
         new BukkitRunnable() {
             int ticks = 0;
             final int maxTicks = 20;
@@ -656,11 +699,11 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     Player p = lobby.players.get(pIndex);
 
                     if (leaders.contains(pIndex) && leaders.size() == 1) {
-                        battleGui.setItem(2 + pIndex, emeraldBlock);
+                        battleGui.setItem(playerBaseColumns[pIndex], emeraldBlock);
                     }
 
                     ItemStack head = getPlayerHead(p, "§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
-                    battleGui.setItem(11 + pIndex, head);
+                    battleGui.setItem(9 + playerBaseColumns[pIndex], head);
                 }
 
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
@@ -669,7 +712,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     }
                     columns[pIndex][0] = getRandomItemFromConfig(lobby.caseName);
 
-                    int baseColumn = 2 + pIndex;
+                    int baseColumn = playerBaseColumns[pIndex];
                     for (int row = 0; row < 4; row++) {
                         int slot = ((row + 2) * 9) + baseColumn;
                         if (columns[pIndex][row] != null) {
@@ -720,14 +763,14 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     List<Integer> newLeaders = getLeadersIndices(lobby.mode, playerScores, terminalValues);
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                         if (newLeaders.contains(pIndex) && newLeaders.size() == 1) {
-                            battleGui.setItem(2 + pIndex, emeraldBlock);
+                            battleGui.setItem(playerBaseColumns[pIndex], emeraldBlock);
                         } else {
-                            battleGui.setItem(2 + pIndex, purpleGlass);
+                            battleGui.setItem(playerBaseColumns[pIndex], purpleGlass);
                         }
 
                         Player p = lobby.players.get(pIndex);
                         ItemStack head = getPlayerHead(p, "§b" + p.getName() + " §7(Wynik: §a" + playerScores[pIndex] + "§7)");
-                        battleGui.setItem(11 + pIndex, head);
+                        battleGui.setItem(9 + playerBaseColumns[pIndex], head);
                     }
 
                     new BukkitRunnable() {
@@ -801,6 +844,14 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             purpleGlass.setItemMeta(glassMeta);
         }
 
+        int playerCount = lobby.players.size();
+        int[] playerBaseColumns = new int[playerCount];
+        if (playerCount <= 4) {
+            for (int i = 0; i < playerCount; i++) playerBaseColumns[i] = 2 + i;
+        } else {
+            for (int i = 0; i < playerCount; i++) playerBaseColumns[i] = 1 + i;
+        }
+
         new BukkitRunnable() {
             int ticks = 0;
             final int maxTicks = 30;
@@ -813,21 +864,20 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     battleGui.setItem(i, purpleGlass);
                 }
 
-                // Efekt animacji rotacji bloku zwycięzcy na zmianę dla graczy remisu
                 int winningPlayerIndex = tiedIndices.get(random.nextInt(tiedIndices.size()));
 
                 for (int pIndex = 0; pIndex < lobby.players.size(); pIndex++) {
                     Player p = lobby.players.get(pIndex);
                     ItemStack head = getPlayerHead(p, "§b" + p.getName());
-                    battleGui.setItem(11 + pIndex, head);
+                    battleGui.setItem(9 + playerBaseColumns[pIndex], head);
 
                     if (tiedIndices.contains(pIndex)) {
                         ItemStack drop = getRandomItemFromConfig(lobby.caseName);
-                        battleGui.setItem(29 + pIndex, drop);
+                        battleGui.setItem(27 + playerBaseColumns[pIndex], drop);
                     }
                 }
 
-                battleGui.setItem(2 + winningPlayerIndex, emeraldBlock);
+                battleGui.setItem(playerBaseColumns[winningPlayerIndex], emeraldBlock);
 
                 for (Player p : lobby.players) {
                     p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.8f, 1.5f);

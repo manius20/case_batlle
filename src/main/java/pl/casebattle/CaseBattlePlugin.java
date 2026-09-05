@@ -54,7 +54,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         });
     }
 
-    // Pomocnicza metoda do tworzenia główki gracza ze skinem
     private ItemStack getPlayerHead(Player player, String displayName) {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
@@ -80,6 +79,31 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         for (int i = 0; i < 54; i++) {
             gui.setItem(i, purpleGlass);
         }
+
+        // Książka informacyjna w lewym górnym rogu (Slot 0)
+        ItemStack infoBook = new ItemStack(Material.BOOK);
+        ItemMeta bookMeta = infoBook.getItemMeta();
+        if (bookMeta != null) {
+            bookMeta.setDisplayName("§e§lInformacje o Case Battle");
+            bookMeta.setLore(Arrays.asList(
+                "§7Czym jest Case Battle?",
+                "§fOtwieranie skrzynek w czasie rzeczywistym",
+                "§fzłaczona rywalizacja z innymi graczami!",
+                "",
+                "§7Waluta gry:",
+                "§f• Płacisz §bZWYKŁYMI DIAMENTAMI §fz ekwipunku",
+                "§f  (Bloki diamentów nie są akceptowane).",
+                "",
+                "§7Tryby gry:",
+                "§f• §aClassic §7| §cUnderdog §7| §ePoint Rush §7| §bTerminal",
+                "",
+                "§7Opcje w menu:",
+                "§f• §aStwórz bitwę §7- Wybierz skrzynkę, tryb i ilość.",
+                "§f• §eOglądaj §7- Śledź bitwy innych graczy na żywo."
+            ));
+            infoBook.setItemMeta(bookMeta);
+        }
+        gui.setItem(0, infoBook);
 
         List<Integer> centerSlots = new ArrayList<>();
         for (int row = 1; row <= 4; row++) {
@@ -621,6 +645,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     battleGui.setItem(11 + pIndex, head);
                 }
 
+                // Przepływ przedmiotów i ich wyświetlanie w 3 rzędach pod głowami graczy
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                     for (int row = 2; row > 0; row--) {
                         columns[pIndex][row] = columns[pIndex][row - 1];
@@ -629,7 +654,11 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
                     int baseColumn = 2 + pIndex;
                     for (int row = 0; row < 3; row++) {
-                        int slot = ((row + 2) * 9) + baseColumn;
+                        // row 0 -> Slot 20-23
+                        // row 1 -> Slot 29-32
+                        // row 2 -> Slot 47-50 (najniższy rząd w GUI)
+                        int rowOffset = (row == 2) ? 5 : (row + 2);
+                        int slot = (rowOffset * 9) + baseColumn;
                         if (columns[pIndex][row] != null) {
                             battleGui.setItem(slot, columns[pIndex][row]);
                         }
@@ -646,7 +675,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     int maxRoundValue = -1;
 
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        ItemStack won = columns[pIndex][1];
+                        ItemStack won = columns[pIndex][1]; // Wygrywa przedmiot ze środkowego rzędu (row 1)
                         if (won != null) {
                             wonItems.get(pIndex).add(won);
                             int val = getItemValue(won);
@@ -761,7 +790,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         new BukkitRunnable() {
             int ticks = 0;
-            final int maxTicks = 30; // 3 sekundy losowania
+            final int maxTicks = 30;
 
             @Override
             public void run() {

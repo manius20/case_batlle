@@ -876,7 +876,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 2L);
     }
 
-    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW (BEZ ŻADNYCH MNOŻNIKÓW)
+    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW (SZTYWNE WARTOŚCI DLA WSZYSTKICH)
     private int getItemValue(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return 0;
 
@@ -894,14 +894,35 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // 2. Sztywne wartości punktowe dokładnie wg ustaleń
+        // 2. Sztywne wartości punktowe dla wszystkich przedmiotów i zbroi
         switch (type) {
             case DIRT:
                 return (amount >= 64) ? 10 : 0;
+            // WSZYSTKIE RODZAJE ZBROI (skórzane, żelazne, złote, diamentowe, netherytowe, kolczaste)
             case DIAMOND_HELMET:
             case DIAMOND_CHESTPLATE:
             case DIAMOND_LEGGINGS:
             case DIAMOND_BOOTS:
+            case IRON_HELMET:
+            case IRON_CHESTPLATE:
+            case IRON_LEGGINGS:
+            case IRON_BOOTS:
+            case GOLDEN_HELMET:
+            case GOLDEN_CHESTPLATE:
+            case GOLDEN_LEGGINGS:
+            case GOLDEN_BOOTS:
+            case CHAINMAIL_HELMET:
+            case CHAINMAIL_CHESTPLATE:
+            case CHAINMAIL_LEGGINGS:
+            case CHAINMAIL_BOOTS:
+            case LEATHER_HELMET:
+            case LEATHER_CHESTPLATE:
+            case LEATHER_LEGGINGS:
+            case LEATHER_BOOTS:
+            case NETHERITE_HELMET:
+            case NETHERITE_CHESTPLATE:
+            case NETHERITE_LEGGINGS:
+            case NETHERITE_BOOTS:
                 return 75;
             case DIAMOND_SWORD:
                 return 100;
@@ -934,8 +955,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 break;
         }
 
-        // Brak mnożników – domyślnie zwracamy dokładnie ilość sztuk przedmiotu (1 pkt/szt.)
-        return amount;
+        // Jeśli przedmiotu nie ma na liście, zwraca 0 punktów (brak losowego mnożnika)
+        return 0;
     }
 
     private ItemStack getRandomItemFromConfig(String caseDisplayName) {

@@ -88,7 +88,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             bookMeta.setLore(Arrays.asList(
                 "§7Czym jest Case Battle?",
                 "§fOtwieranie skrzynek w czasie rzeczywistym",
-                "§fzłaczona rywalizacja z innymi graczami!",
+                "§fz połączoną rywalizacją z innymi graczami!",
                 "",
                 "§7Waluta gry:",
                 "§f• Płacisz §bZWYKŁYMI DIAMENTAMI §fz ekwipunku",
@@ -594,7 +594,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
     private void runRound(BattleLobby lobby, Inventory battleGui, int currentRound, int totalRounds, int[] playerScores, int[] terminalValues, List<List<ItemStack>> wonItems) {
         int playerCount = lobby.players.size();
-        ItemStack[][] columns = new ItemStack[playerCount][3];
+        ItemStack[][] columns = new ItemStack[playerCount][4];
 
         ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
         ItemMeta glassMeta = purpleGlass.getItemMeta();
@@ -645,20 +645,15 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     battleGui.setItem(11 + pIndex, head);
                 }
 
-                // Przepływ przedmiotów i ich wyświetlanie w 3 rzędach pod głowami graczy
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                    for (int row = 2; row > 0; row--) {
+                    for (int row = 3; row > 0; row--) {
                         columns[pIndex][row] = columns[pIndex][row - 1];
                     }
                     columns[pIndex][0] = getRandomItemFromConfig(lobby.caseName);
 
                     int baseColumn = 2 + pIndex;
-                    for (int row = 0; row < 3; row++) {
-                        // row 0 -> Slot 20-23
-                        // row 1 -> Slot 29-32
-                        // row 2 -> Slot 47-50 (najniższy rząd w GUI)
-                        int rowOffset = (row == 2) ? 5 : (row + 2);
-                        int slot = (rowOffset * 9) + baseColumn;
+                    for (int row = 0; row < 4; row++) {
+                        int slot = ((row + 2) * 9) + baseColumn;
                         if (columns[pIndex][row] != null) {
                             battleGui.setItem(slot, columns[pIndex][row]);
                         }
@@ -675,7 +670,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     int maxRoundValue = -1;
 
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        ItemStack won = columns[pIndex][1]; // Wygrywa przedmiot ze środkowego rzędu (row 1)
+                        ItemStack won = columns[pIndex][1]; // Przedmiot wygrywający (row 1 / Rząd 3 w GUI)
                         if (won != null) {
                             wonItems.get(pIndex).add(won);
                             int val = getItemValue(won);

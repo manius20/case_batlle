@@ -723,7 +723,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                         ItemStack won = columns[pIndex][2]; 
                         if (won != null && won.getType() != Material.AIR) {
-                            // Zapisujemy klon wygranego przedmiotu do listy nagród
                             wonItems.get(pIndex).add(won.clone());
 
                             int val = getItemValue(won);
@@ -877,14 +876,14 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 2L);
     }
 
-    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW
+    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW (BEZ ŻADNYCH MNOŻNIKÓW)
     private int getItemValue(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return 0;
 
         Material type = item.getType();
         int amount = item.getAmount();
 
-        // 1. Specjalna obsługa potek na siłę (Strength)
+        // 1. Potka na siłę (265 punktów)
         if (type == Material.POTION || type == Material.SPLASH_POTION || type == Material.LINGERING_POTION) {
             if (item.getItemMeta() instanceof PotionMeta potionMeta) {
                 if (potionMeta.getBasePotionType() == PotionType.STRENGTH 
@@ -895,11 +894,10 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // 2. Punktacja zależna od konkretnych ilości i materiałów
+        // 2. Sztywne wartości punktowe dokładnie wg ustaleń
         switch (type) {
             case DIRT:
-                if (amount >= 64) return 10;
-                break;
+                return (amount >= 64) ? 10 : 0;
             case DIAMOND_HELMET:
             case DIAMOND_CHESTPLATE:
             case DIAMOND_LEGGINGS:
@@ -908,42 +906,36 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             case DIAMOND_SWORD:
                 return 100;
             case DIAMOND_PICKAXE:
-                return 125;
+                return 150;
             case DIAMOND:
-                if (amount >= 64) return 120;
-                break;
+                return (amount >= 64) ? 135 : 0;
             case NETHERITE_INGOT:
             case NETHERITE_SCRAP:
             case NETHERITE_BLOCK:
-                return 275;
+                return 375;
             case GOLDEN_APPLE:
                 if (amount >= 32) return 240;
                 if (amount >= 16) return 160;
                 if (amount >= 8) return 80;
-                return 10;
+                return 0;
             case ENCHANTED_GOLDEN_APPLE:
-                return 550;
+                return 650;
             case ENDER_PEARL:
-                if (amount >= 16) return 185;
-                break;
-            case COOKED_BEEF: // Steak
-                if (amount >= 64) return 55;
-                break;
+                return (amount >= 16) ? 185 : 0;
+            case COOKED_BEEF:
+                return (amount >= 64) ? 55 : 0;
             case WIND_CHARGE:
-                if (amount >= 64) return 85;
-                break;
+                return (amount >= 64) ? 85 : 0;
             case OBSIDIAN:
-                if (amount >= 64) return 65;
-                break;
+                return (amount >= 64) ? 65 : 0;
             case GOLD_INGOT:
-                if (amount >= 64) return 35;
-                break;
+                return (amount >= 64) ? 35 : 0;
             default:
                 break;
         }
 
-        // Domyślny przelicznik awaryjny (jeśli przedmiot nie ma specjalnej reguły)
-        return amount * 2;
+        // Brak mnożników – domyślnie zwracamy dokładnie ilość sztuk przedmiotu (1 pkt/szt.)
+        return amount;
     }
 
     private ItemStack getRandomItemFromConfig(String caseDisplayName) {
@@ -1013,7 +1005,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         }
 
-        // Wydawanie dropu zwycięzcy (oraz wyrzucanie pod nogi, gdy ekwipunek jest pełny)
         for (List<ItemStack> list : wonItems) {
             for (ItemStack item : list) {
                 if (item != null && item.getType() != Material.AIR) {

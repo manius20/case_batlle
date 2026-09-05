@@ -876,7 +876,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 2L);
     }
 
-    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW (SZTYWNE WARTOŚCI DLA WSZYSTKICH)
+    // SYSTEM PUNKTACJI DLA WYGRANYCH PRZEDMIOTÓW (SZTYWNE WARTOŚCI)
     private int getItemValue(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return 0;
 
@@ -894,11 +894,13 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // 2. Sztywne wartości punktowe dla wszystkich przedmiotów i zbroi
+        // 2. Sztywne wartości punktowe (w tym obsługa 200 diamentów z OP skrzynki)
         switch (type) {
             case DIRT:
                 return (amount >= 64) ? 10 : 0;
-            // WSZYSTKIE RODZAJE ZBROI (skórzane, żelazne, złote, diamentowe, netherytowe, kolczaste)
+            case DIAMOND:
+                return (amount >= 200) ? 2000 : (amount >= 64 ? 135 : 0); // Jeśli wypadnie 200 diamentów z OP skrzynki, daje dużo punktów lub dostosujesz według uznania
+            // ZBROJE
             case DIAMOND_HELMET:
             case DIAMOND_CHESTPLATE:
             case DIAMOND_LEGGINGS:
@@ -928,8 +930,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 return 100;
             case DIAMOND_PICKAXE:
                 return 150;
-            case DIAMOND:
-                return (amount >= 64) ? 135 : 0;
             case NETHERITE_INGOT:
             case NETHERITE_SCRAP:
             case NETHERITE_BLOCK:
@@ -955,7 +955,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 break;
         }
 
-        // Jeśli przedmiotu nie ma na liście, zwraca 0 punktów (brak losowego mnożnika)
         return 0;
     }
 
@@ -966,6 +965,12 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         for (String key : cs.getKeys(false)) {
             String name = cs.getString(key + ".display-name", "").replace("&", "§");
             if (name.equals(caseDisplayName)) {
+                
+                // TYMCZASOWO: Jeśli to OP skrzynka, zawsze daj 200 diamentów
+                if (key.equalsIgnoreCase("op_case")) {
+                    return new ItemStack(Material.DIAMOND, 200);
+                }
+
                 List<Map<?, ?>> items = cs.getMapList(key + ".items");
                 double rand = random.nextDouble() * 100;
                 double cumulative = 0.0;

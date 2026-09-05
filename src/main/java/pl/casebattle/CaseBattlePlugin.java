@@ -1,5 +1,10 @@
 package pl.casebattle;
 
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -49,9 +54,15 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     public void onEnable() {
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
+        
+        // Dopisano obsługę subkomendy dołączania przez czat (/bitwa dolacz <nick>)
         getCommand("bitwa").setExecutor((sender, command, label, args) -> {
             if (sender instanceof Player p) {
-                openMainMenu(p);
+                if (args.length == 2 && args[0].equalsIgnoreCase("dolacz")) {
+                    joinLobbyByOwner(p, args[1]);
+                } else {
+                    openMainMenu(p);
+                }
             }
             return true;
         });
@@ -83,7 +94,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             gui.setItem(i, purpleGlass);
         }
 
-        // Książka informacyjna
         ItemStack infoBook = new ItemStack(Material.BOOK);
         ItemMeta bookMeta = infoBook.getItemMeta();
         if (bookMeta != null) {
@@ -297,7 +307,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return item;
     }
 
-    // MODYFIKACJA 1: Powiększenie GUI do 54 slotów i zakres 1-35 skrzynek
     public void openAmountSelectionMenu(Player player) {
         String caseName = selectedCaseName.get(player.getUniqueId());
         BattleMode mode = selectedMode.get(player.getUniqueId());
@@ -317,7 +326,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         int singleCost = getCaseCost(caseName);
         
-        // Rozmieszczenie 35 skrzynek w środkowych rzędach (od wiersza 1 do 4)
         int currentAmount = 1;
         for (int row = 1; row <= 4; row++) {
             for (int col = 1; col <= 8; col++) {
@@ -486,9 +494,20 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         lobby.players.add(player);
         activeLobbies.put(player.getUniqueId(), lobby);
         openLobbyGUI(lobby);
+
+        // Wysyłanie klikalnego powiadomienia na czacie do wszystkich graczy
+        TextComponent msg = new TextComponent("§a★ Gracz §e" + player.getName() + " §astworzył bitwę! ");
+        TextComponent button = new TextComponent("§b§l[DOŁĄCZ DO BITWY]");
+        button.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text("§7Kliknij, aby dołączyć do bitwy!")));
+        button.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/bitwa dolacz " + player.getName()));
+        msg.addExtra(button);
+
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.spigot().sendMessage(msg);
+            p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.2f);
+        }
     }
 
-    // MODYFIKACJA 2: Zwiększenie do max 6 graczy w lobby
     private void joinLobbyByOwner(Player player, String ownerName) {
         BattleLobby targetLobby = null;
         for (BattleLobby lobby : activeLobbies.values()) {
@@ -500,6 +519,11 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         if (targetLobby == null) {
             player.sendMessage("§cTa bitwa nie jest już dostępna lub jest pełna.");
+            return;
+        }
+
+        if (targetLobby.players.contains(player)) {
+            player.sendMessage("§cJesteś już w tej bitwie!");
             return;
         }
 
@@ -530,7 +554,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return null;
     }
 
-    // MODYFIKACJA 2: Układ poczekalni wyśrodkowany dla 6 graczy (sloty 10-15)
     private void openLobbyGUI(BattleLobby lobby) {
         Inventory gui = Bukkit.createInventory(null, 27, "§8Poczekalnia Bitwy: " + lobby.caseName);
 
@@ -606,7 +629,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         runRound(lobby, battleGui, 1, lobby.caseAmount, playerScores, terminalValues, wonItems);
     }
 
-    // MODYFIKACJA 2 & 3: Obsługa do 6 graczy oraz ikona wybranego trybu w prawym górnym rogu
     private void runRound(BattleLobby lobby, Inventory battleGui, int currentRound, int totalRounds, int[] playerScores, int[] terminalValues, List<List<ItemStack>> wonItems) {
         int playerCount = lobby.players.size();
         ItemStack[][] columns = new ItemStack[playerCount][4];
@@ -618,6 +640,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             purpleGlass.setItemMeta(glassMeta);
         }
 
+        // Tabliczka wskazująca runda/punkt wygranej
         ItemStack sign = new ItemStack(Material.OAK_HANGING_SIGN);
         ItemMeta signMeta = sign.getItemMeta();
         if (signMeta != null) {
@@ -625,7 +648,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             sign.setItemMeta(signMeta);
         }
 
-        // MODYFIKACJA 3: Itemek oznaczający wybrany tryb w prawym górnym rogu (Slot 8)
         ItemStack modeItem = new ItemStack(lobby.mode.getIconMaterial());
         ItemMeta modeMeta = modeItem.getItemMeta();
         if (modeMeta != null) {
@@ -655,12 +677,15 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     battleGui.setItem(i, purpleGlass);
                 }
 
-                battleGui.setItem(0, sign);
-                battleGui.setItem(8, modeItem); // Prawy górny róg
+                // Przemieszczono tabliczki na 4 kratkę od góry z obu stron (Rząd 4: slot 27 oraz 35)
+                battleGui.setItem(27, sign);
+                battleGui.setItem(35, sign);
+
+                // Ikona trybu po prawej stronie w lewym/prawym rogu
+                battleGui.setItem(8, modeItem);
 
                 List<Integer> leaders = getLeadersIndices(lobby.mode, playerScores, terminalValues);
 
-                // MODYFIKACJA 2: Sloty kolumn dla graczy (1 do 6)
                 for (int pIndex = 0; pIndex < playerCount; pIndex++) {
                     Player p = lobby.players.get(pIndex);
 
@@ -699,7 +724,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     int maxRoundValue = -1;
 
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        ItemStack won = columns[pIndex][1];
+                        // Wygrywający przedmiot na 4 kratce od góry (row 2 czyli rządek 4 GUI / slot slot-27/35)
+                        ItemStack won = columns[pIndex][2]; 
                         if (won != null) {
                             wonItems.get(pIndex).add(won);
                             int val = getItemValue(won);

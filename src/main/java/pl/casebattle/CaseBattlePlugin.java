@@ -1,14 +1,15 @@
 package pl.casebattle;
 
 import net.md_5.bungee.api.chat.ClickEvent;
-import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,8 +17,10 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
@@ -55,7 +58,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         
-        // Dopisano obsługę subkomendy dołączania przez czat (/bitwa dolacz <nick>)
         getCommand("bitwa").setExecutor((sender, command, label, args) -> {
             if (sender instanceof Player p) {
                 if (args.length == 2 && args[0].equalsIgnoreCase("dolacz")) {
@@ -495,7 +497,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         activeLobbies.put(player.getUniqueId(), lobby);
         openLobbyGUI(lobby);
 
-        // Wysyłanie klikalnego powiadomienia na czacie do wszystkich graczy
         TextComponent msg = new TextComponent("§a★ Gracz §e" + player.getName() + " §astworzył bitwę! ");
         TextComponent button = new TextComponent("§b§l[DOŁĄCZ DO BITWY]");
         button.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text("§7Kliknij, aby dołączyć do bitwy!")));
@@ -640,7 +641,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             purpleGlass.setItemMeta(glassMeta);
         }
 
-        // Tabliczka wskazująca runda/punkt wygranej
         ItemStack sign = new ItemStack(Material.OAK_HANGING_SIGN);
         ItemMeta signMeta = sign.getItemMeta();
         if (signMeta != null) {
@@ -677,11 +677,9 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     battleGui.setItem(i, purpleGlass);
                 }
 
-                // Przemieszczono tabliczki na 4 kratkę od góry z obu stron (Rząd 4: slot 27 oraz 35)
                 battleGui.setItem(27, sign);
                 battleGui.setItem(35, sign);
 
-                // Ikona trybu po prawej stronie w lewym/prawym rogu
                 battleGui.setItem(8, modeItem);
 
                 List<Integer> leaders = getLeadersIndices(lobby.mode, playerScores, terminalValues);
@@ -724,7 +722,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     int maxRoundValue = -1;
 
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        // Wygrywający przedmiot na 4 kratce od góry (row 2 czyli rządek 4 GUI / slot slot-27/35)
                         ItemStack won = columns[pIndex][2]; 
                         if (won != null) {
                             wonItems.get(pIndex).add(won);
@@ -912,8 +909,32 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                         int amount = ((Number) itemMap.get("amount")).intValue();
                         ItemStack stack = new ItemStack(mat, amount);
                         ItemMeta meta = stack.getItemMeta();
-                        if (meta != null && itemMap.containsKey("display-name")) {
-                            meta.setDisplayName(((String) itemMap.get("display-name")).replace("&", "§"));
+
+                        if (meta != null) {
+                            if (itemMap.containsKey("display-name")) {
+                                meta.setDisplayName(((String) itemMap.get("display-name")).replace("&", "§"));
+                            }
+
+                            if (itemMap.containsKey("enchantments")) {
+                                Map<?, ?> enchants = (Map<?, ?>) itemMap.get("enchantments");
+                                for (Map.Entry<?, ?> entry : enchants.entrySet()) {
+                                    String enchName = entry.getKey().toString().toLowerCase();
+                                    int level = ((Number) entry.getValue()).intValue();
+                                    
+                                    Enchantment enchantment = Enchantment.getByKey(NamespacedKey.minecraft(enchName));
+                                    if (enchantment != null) {
+                                        meta.addEnchant(enchantment, level, true);
+                                    }
+                                }
+                            }
+
+                            if (meta instanceof PotionMeta potionMeta && itemMap.containsKey("potion_type")) {
+                                try {
+                                    PotionType type = PotionType.valueOf((String) itemMap.get("potion_type"));
+                                    potionMeta.setBasePotionType(type);
+                                } catch (Exception ignored) {}
+                            }
+
                             stack.setItemMeta(meta);
                         }
                         return stack;

@@ -8,17 +8,17 @@ cases:
     items:
       - material: "DIAMOND"
         amount: 1
-        chance: 50.0
+        chance: 40.0
       - material: "IRON_INGOT"
         amount: 5
-        chance: 50.0
+        chance: 60.0
   droga_skrzynka:
     display-name: "&cDroga Skrzynka"
-    cost: 20
+    cost: 15
     items:
       - material: "NETHERITE_INGOT"
         amount: 1
-        chance: 10.0
-      - material: "DIAMOND_BLOCK"
-        amount: 2
-        chance: 90.0
+        chance: 40.0
+      - material: "DIAMOND"
+        amount: 1
+        chance: 60.0

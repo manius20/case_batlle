@@ -22,3 +22,110 @@ cases:
       - material: "DIAMOND"
         amount: 1
         chance: 60.0
+  op_case:
+    display-name: "&c&lOP SKRZYNKA"
+    cost: 1
+    items:
+      # Ultra Rzadkie / OP Drop (Łącznie: 6%)
+      - material: ENCHANTED_GOLDEN_APPLE
+        amount: 1
+        display-name: "&6&lZaklęte Złote Jabłko"
+        chance: 1.0
+      - material: NETHERITE_INGOT
+        amount: 3
+        display-name: "&8&l3x Sztabka Netheritu"
+        chance: 2.0
+      - material: DIAMOND_HELMET
+        amount: 1
+        display-name: "&b&lOP Diamentowy Hełm (Prot 4, Unb 3)"
+        enchantments:
+          PROTECTION_ENVIRONMENTAL: 4
+          DURABILITY: 3
+        chance: 0.75
+      - material: DIAMOND_CHESTPLATE
+        amount: 1
+        display-name: "&b&lOP Diamentowa Krata (Prot 4, Unb 3)"
+        enchantments:
+          PROTECTION_ENVIRONMENTAL: 4
+          DURABILITY: 3
+        chance: 0.75
+      - material: DIAMOND_LEGGINGS
+        amount: 1
+        display-name: "&b&lOP Diamentowe Spodnie (Prot 4, Unb 3)"
+        enchantments:
+          PROTECTION_ENVIRONMENTAL: 4
+          DURABILITY: 3
+        chance: 0.75
+      - material: DIAMOND_BOOTS
+        amount: 1
+        display-name: "&b&lOP Diamentowe Buty (Prot 4, Unb 3)"
+        enchantments:
+          PROTECTION_ENVIRONMENTAL: 4
+          DURABILITY: 3
+        chance: 0.75
+
+      # Bardzo Rzadkie przedmioty (Łącznie: 11%)
+      - material: DIAMOND_SWORD
+        amount: 1
+        display-name: "&b&lOP Diamentowy Miecz (Sharp 5, Unb 3)"
+        enchantments:
+          DAMAGE_ALL: 5
+          DURABILITY: 3
+        chance: 3.0
+      - material: DIAMOND_PICKAXE
+        amount: 1
+        display-name: "&b&lOP Diamentowy Kilof (Eff 5, Fort 3, Unb 3)"
+        enchantments:
+          DIG_SPEED: 5
+          LOOT_BONUS_BLOCKS: 3
+          DURABILITY: 3
+        chance: 3.0
+      - material: DIAMOND
+        amount: 64
+        display-name: "&b&l64x Diament"
+        chance: 5.0
+
+      # Średnio Rzadkie / Rzadkie (Łącznie: 33%)
+      - material: GOLDEN_APPLE
+        amount: 32
+        display-name: "&e&l32x Złote Jabłko"
+        chance: 3.0
+      - material: GOLDEN_APPLE
+        amount: 16
+        display-name: "&e&l16x Złote Jabłko"
+        chance: 6.0
+      - material: GOLDEN_APPLE
+        amount: 8
+        display-name: "&e&l8x Złote Jabłko"
+        chance: 12.0
+      - material: ENDER_PEARL
+        amount: 16
+        display-name: "&5&l16x Perła Endu"
+        chance: 12.0
+
+      # Powszechne / Baza (Łącznie: 50%)
+      - material: POTION
+        amount: 1
+        potion_type: STRENGTH
+        display-name: "&c&lMikstura Siły"
+        chance: 7.0
+      - material: OBSIDIAN
+        amount: 64
+        display-name: "&1&l64x Obsydian"
+        chance: 8.0
+      - material: WIND_CHARGE
+        amount: 64
+        display-name: "&f&l64x Wind Charge"
+        chance: 8.0
+      - material: GOLD_INGOT
+        amount: 64
+        display-name: "&e&l64x Złoto"
+        chance: 9.0
+      - material: COOKED_BEEF
+        amount: 64
+        display-name: "&6&l64x Stek"
+        chance: 9.0
+      - material: DIRT
+        amount: 64
+        display-name: "&2&l64x Dirt"
+        chance: 9.0

@@ -1,0 +1,8 @@
+name: CaseBattle
+version: 1.0.0
+main: pl.casebattle.CaseBattlePlugin
+api-version: '1.21'
+commands:
+  bitwa:
+    description: Otwiera menu bitew o skrzynki
+    permission: casebattle.use

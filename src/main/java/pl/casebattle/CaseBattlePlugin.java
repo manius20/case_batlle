@@ -34,7 +34,139 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         });
     }
 
+    // 1. GŁÓWNE MENU PODWÓJNEJ SKRZYNKI
     public void openMainMenu(Player player) {
+        Inventory gui = Bukkit.createInventory(null, 54, "§8Bitwy Skrzynek - Lista");
+
+        ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = purpleGlass.getItemMeta();
+        if (glassMeta != null) {
+            glassMeta.setDisplayName(" ");
+            purpleGlass.setItemMeta(glassMeta);
+        }
+
+        for (int i = 0; i < 54; i++) {
+            gui.setItem(i, purpleGlass);
+        }
+
+        List<Integer> centerSlots = new ArrayList<>();
+        for (int row = 1; row <= 4; row++) {
+            for (int col = 1; col <= 7; col++) {
+                int slot = row * 9 + col;
+                gui.setItem(slot, null);
+                centerSlots.add(slot);
+            }
+        }
+
+        // Wyświetlanie dołączalnych bitew
+        int slotIndex = 0;
+        for (BattleLobby lobby : activeLobbies.values()) {
+            if (!lobby.started && !lobby.starting && lobby.players.size() < 4) {
+                if (slotIndex >= centerSlots.size()) break;
+
+                ItemStack lobbyItem = new ItemStack(Material.CHEST);
+                ItemMeta meta = lobbyItem.getItemMeta();
+                if (meta != null) {
+                    meta.setDisplayName("§aBitwa gracza: " + lobby.ownerName);
+                    meta.setLore(Arrays.asList(
+                        "§7Skrzynka: §e" + lobby.caseName,
+                        "§7Ilość skrzynek: §b" + lobby.caseAmount,
+                        "§7Gracze: §a" + lobby.players.size() + "/4",
+                        "",
+                        "§eKliknij, aby dołączyć do tej bitwy!"
+                    ));
+                    lobbyItem.setItemMeta(meta);
+                }
+                gui.setItem(centerSlots.get(slotIndex++), lobbyItem);
+            }
+        }
+
+        // Prawy górny róg (Slot 8) - Oglądaj trwające bitwy
+        ItemStack watchItem = new ItemStack(Material.ENDER_EYE);
+        ItemMeta watchMeta = watchItem.getItemMeta();
+        if (watchMeta != null) {
+            watchMeta.setDisplayName("§e§lOglądaj trwające bitwy");
+            watchMeta.setLore(Arrays.asList(
+                "§7Kliknij, aby zobaczyć listę",
+                "§7bitew, które są w trakcie losowania!"
+            ));
+            watchItem.setItemMeta(watchMeta);
+        }
+        gui.setItem(8, watchItem);
+
+        // Lewy dolny róg (Slot 45) - Diamenty
+        int diamonds = countDiamonds(player);
+        ItemStack emeraldBlock = new ItemStack(Material.EMERALD_BLOCK);
+        ItemMeta emMeta = emeraldBlock.getItemMeta();
+        if (emMeta != null) {
+            emMeta.setDisplayName("§a§lTwoje Diamenty: §b" + diamonds);
+            emMeta.setLore(Arrays.asList(
+                "§7Łączna ilość diamentów w ekwipunku,",
+                "§7które możesz przeznaczyć na bitwy."
+            ));
+            emeraldBlock.setItemMeta(emMeta);
+        }
+        gui.setItem(45, emeraldBlock);
+
+        // Prawy dolny róg (Slot 53) - Stwórz bitwę
+        ItemStack createPaper = new ItemStack(Material.PAPER);
+        ItemMeta paperMeta = createPaper.getItemMeta();
+        if (paperMeta != null) {
+            paperMeta.setDisplayName("§a§lStwórz bitwę");
+            paperMeta.setLore(Arrays.asList(
+                "§7Kliknij tutaj, aby wybrać skrzynkę",
+                "§7i utworzyć nową bitwę!"
+            ));
+            createPaper.setItemMeta(paperMeta);
+        }
+        gui.setItem(53, createPaper);
+
+        player.openInventory(gui);
+    }
+
+    // MENU OGLĄDANIA TRWAJĄCYCH BITEW
+    public void openActiveBattlesMenu(Player player) {
+        Inventory gui = Bukkit.createInventory(null, 54, "§8Trwające Bitwy (Widz)");
+
+        ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = purpleGlass.getItemMeta();
+        if (glassMeta != null) {
+            glassMeta.setDisplayName(" ");
+            purpleGlass.setItemMeta(glassMeta);
+        }
+
+        for (int i = 0; i < 54; i++) {
+            gui.setItem(i, purpleGlass);
+        }
+
+        int slot = 10;
+        for (BattleLobby lobby : activeLobbies.values()) {
+            if (lobby.started && lobby.activeGui != null) {
+                if (slot >= 44) break;
+                if (slot % 9 == 8 || slot % 9 == 0) slot += 2;
+
+                ItemStack item = new ItemStack(Material.ENDER_EYE);
+                ItemMeta meta = item.getItemMeta();
+                if (meta != null) {
+                    meta.setDisplayName("§eBitwa w trakcie: " + lobby.ownerName);
+                    meta.setLore(Arrays.asList(
+                        "§7Skrzynka: §e" + lobby.caseName,
+                        "§7Ilość skrzynek: §b" + lobby.caseAmount,
+                        "§7Uczestnicy: §a" + lobby.players.size() + " graczy",
+                        "",
+                        "§aKliknij, aby oglądać na żywo!"
+                    ));
+                    item.setItemMeta(meta);
+                }
+                gui.setItem(slot++, item);
+            }
+        }
+
+        player.openInventory(gui);
+    }
+
+    // MENU WYBORU SKRZYNKI
+    public void openCaseSelectionMenu(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, "§8Wybierz skrzynkę do bitwy");
         ConfigurationSection cs = getConfig().getConfigurationSection("cases");
         if (cs == null) return;
@@ -73,6 +205,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
+    // MENU WYBORU ILOSCI SKRZYNIEK (1-15)
     public void openAmountSelectionMenu(Player player, String caseName) {
         selectedCaseName.put(player.getUniqueId(), caseName);
         Inventory gui = Bukkit.createInventory(null, 27, "§8Wybierz ilość skrzynek (1-15)");
@@ -88,8 +221,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
 
         int singleCost = getCaseCost(caseName);
-
-        // Tworzenie 15 przycisków wyboru ilości skrzynek
         int[] slots = {0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15};
         for (int i = 1; i <= 15; i++) {
             ItemStack item = new ItemStack(Material.CHEST, i);
@@ -99,7 +230,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 meta.setLore(Arrays.asList(
                     "§7Koszt całkowity: §b" + (singleCost * i) + " Diamentów",
                     "",
-                    "§eKliknij, aby rozpocząć bitwę o " + i + " skrzynek!"
+                    "§eKliknij, aby utworzyć bitwę o " + i + " skrzynek!"
                 ));
                 item.setItemMeta(meta);
             }
@@ -114,7 +245,47 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         String title = event.getView().getTitle();
 
-        if (title.equals("§8Wybierz skrzynkę do bitwy")) {
+        if (title.equals("§8Bitwy Skrzynek - Lista")) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+
+            if (slot == 8) {
+                openActiveBattlesMenu(player);
+                return;
+            }
+
+            if (slot == 53) {
+                openCaseSelectionMenu(player);
+                return;
+            }
+
+            ItemStack clicked = event.getCurrentItem();
+            if (clicked != null && clicked.getType() == Material.CHEST && clicked.hasItemMeta()) {
+                String displayName = clicked.getItemMeta().getDisplayName();
+                if (displayName.startsWith("§aBitwa gracza: ")) {
+                    String ownerName = displayName.replace("§aBitwa gracza: ", "");
+                    joinLobbyByOwner(player, ownerName);
+                }
+            }
+
+        } else if (title.equals("§8Trwające Bitwy (Widz)")) {
+            event.setCancelled(true);
+            ItemStack clicked = event.getCurrentItem();
+            if (clicked != null && clicked.getType() == Material.ENDER_EYE && clicked.hasItemMeta()) {
+                String displayName = clicked.getItemMeta().getDisplayName();
+                if (displayName.startsWith("§eBitwa w trakcie: ")) {
+                    String ownerName = displayName.replace("§eBitwa w trakcie: ", "");
+                    for (BattleLobby lobby : activeLobbies.values()) {
+                        if (lobby.ownerName.equalsIgnoreCase(ownerName) && lobby.started && lobby.activeGui != null) {
+                            player.openInventory(lobby.activeGui);
+                            player.sendMessage("§aOglądasz bitwę gracza " + ownerName + "!");
+                            break;
+                        }
+                    }
+                }
+            }
+
+        } else if (title.equals("§8Wybierz skrzynkę do bitwy")) {
             event.setCancelled(true);
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || clicked.getType() != Material.CHEST) return;
@@ -141,12 +312,12 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
             removeDiamonds(player, totalCost);
             player.sendMessage("§aPobrano §b" + totalCost + " §adiamentów za " + amount + " skrzynek.");
-            createOrJoinLobby(player, caseName, amount);
+            createNewLobby(player, caseName, amount);
 
         } else if (title.startsWith("§8Poczekalnia Bitwy:")) {
             event.setCancelled(true);
             if (event.getRawSlot() == 22) {
-                BattleLobby lobby = activeLobbies.get(player.getUniqueId());
+                BattleLobby lobby = getLobbyByPlayer(player);
                 if (lobby != null && !lobby.started && !lobby.starting) {
                     startCountdown(lobby);
                 }
@@ -169,14 +340,18 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return 0;
     }
 
-    private boolean hasEnoughDiamonds(Player player, int amount) {
+    private int countDiamonds(Player player) {
         int count = 0;
         for (ItemStack stack : player.getInventory().getContents()) {
             if (stack != null && stack.getType() == Material.DIAMOND) {
                 count += stack.getAmount();
             }
         }
-        return count >= amount;
+        return count;
+    }
+
+    private boolean hasEnoughDiamonds(Player player, int amount) {
+        return countDiamonds(player) >= amount;
     }
 
     private void removeDiamonds(Player player, int amount) {
@@ -196,25 +371,53 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private void createOrJoinLobby(Player player, String caseName, int caseAmount) {
+    private void createNewLobby(Player player, String caseName, int caseAmount) {
+        BattleLobby lobby = new BattleLobby(player.getName(), caseName, caseAmount);
+        lobby.players.add(player);
+        activeLobbies.put(player.getUniqueId(), lobby);
+        openLobbyGUI(lobby);
+    }
+
+    private void joinLobbyByOwner(Player player, String ownerName) {
         BattleLobby targetLobby = null;
         for (BattleLobby lobby : activeLobbies.values()) {
-            if (lobby.caseName.equals(caseName) && lobby.caseAmount == caseAmount && !lobby.started && !lobby.starting && lobby.players.size() < 4) {
+            if (lobby.ownerName.equalsIgnoreCase(ownerName) && !lobby.started && !lobby.starting && lobby.players.size() < 4) {
                 targetLobby = lobby;
                 break;
             }
         }
 
         if (targetLobby == null) {
-            targetLobby = new BattleLobby(caseName, caseAmount);
-            activeLobbies.put(player.getUniqueId(), targetLobby);
+            player.sendMessage("§cTa bitwa nie jest już dostępna.");
+            return;
         }
 
-        if (!targetLobby.players.contains(player)) {
-            targetLobby.players.add(player);
+        int totalCost = getCaseCost(targetLobby.caseName) * targetLobby.caseAmount;
+        if (!hasEnoughDiamonds(player, totalCost)) {
+            player.sendMessage("§cNie masz wystarczająco diamentów, aby dołączyć! Wymagane: §b" + totalCost);
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+            return;
         }
+
+        removeDiamonds(player, totalCost);
+        player.sendMessage("§aPobrano §b" + totalCost + " §adiamentów i dołączono do bitwy!");
+        targetLobby.players.add(player);
 
         openLobbyGUI(targetLobby);
+
+        // Automatyczny start, gdy dołączy 4. osoba
+        if (targetLobby.players.size() == 4 && !targetLobby.starting) {
+            startCountdown(targetLobby);
+        }
+    }
+
+    private BattleLobby getLobbyByPlayer(Player player) {
+        for (BattleLobby lobby : activeLobbies.values()) {
+            if (lobby.players.contains(player)) {
+                return lobby;
+            }
+        }
+        return null;
     }
 
     private void openLobbyGUI(BattleLobby lobby) {
@@ -280,6 +483,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     private void startBattleSequence(BattleLobby lobby) {
         lobby.started = true;
         Inventory battleGui = Bukkit.createInventory(null, 54, "§8Losowanie Skrzynek...");
+        lobby.activeGui = battleGui;
 
         for (Player p : lobby.players) {
             p.openInventory(battleGui);
@@ -476,17 +680,20 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        activeLobbies.remove(winner.getUniqueId());
+        activeLobbies.entrySet().removeIf(entry -> entry.getValue().equals(lobby));
     }
 
     private static class BattleLobby {
+        String ownerName;
         String caseName;
         int caseAmount;
         List<Player> players = new ArrayList<>();
         boolean started = false;
         boolean starting = false;
+        Inventory activeGui = null;
 
-        BattleLobby(String caseName, int caseAmount) {
+        BattleLobby(String ownerName, String caseName, int caseAmount) {
+            this.ownerName = ownerName;
             this.caseName = caseName;
             this.caseAmount = caseAmount;
         }

@@ -34,17 +34,15 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     }
 
     public void openMainMenu(Player player) {
-        // Zwiększono rozmiar GUI na 54 sloty (duża skrzynia)
+        // Duże GUI (54 sloty - duża skrzynia)
         Inventory gui = Bukkit.createInventory(null, 54, "§8Wybierz skrzynkę do bitwy");
         ConfigurationSection cs = getConfig().getConfigurationSection("cases");
         if (cs == null) return;
 
         int slot = 10;
         for (String key : cs.getKeys(false)) {
-            if (slot >= 44) break; // Zabezpieczenie przed przepełnieniem
-            
-            // Omijamy odstępy przy krawędziach dla ładniejszego wyglądu
-            if (slot % 9 == 8) slot += 2;
+            if (slot >= 44) break;
+            if (slot % 9 == 8 || slot % 9 == 0) slot += 2;
 
             String name = cs.getString(key + ".display-name", key);
             int cost = cs.getInt(key + ".cost", 0);
@@ -78,14 +76,12 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             String caseName = clicked.getItemMeta().getDisplayName();
             int cost = getCaseCost(caseName);
 
-            // Sprawdzanie czy gracz ma wystarczająco diamentów
             if (!hasEnoughDiamonds(player, cost)) {
                 player.sendMessage("§cNie masz wystarczająco diamentów! Wymagane: §b" + cost);
                 player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                 return;
             }
 
-            // Pobieranie diamentów i wejście do gry
             removeDiamonds(player, cost);
             player.sendMessage("§aPobrano §b" + cost + " §adiamentów za wejście do bitwy.");
             createOrJoinLobby(player, caseName);
@@ -98,6 +94,8 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     startBattle(lobby);
                 }
             }
+        } else if (title.startsWith("§8Losowanie Skrzynek...")) {
+            event.setCancelled(true);
         }
     }
 
@@ -196,31 +194,62 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         }
 
         lobby.started = true;
-        Inventory battleGui = Bukkit.createInventory(null, 36, "§8Otwieranie Skrzynek...");
+        // Duże GUI losowania (54 sloty)
+        Inventory battleGui = Bukkit.createInventory(null, 54, "§8Losowanie Skrzynek...");
+
+        // Dodanie wiszącej tabliczki oznaczającej wygrywającą linię (środkowy rząd - slot 22)
+        ItemStack sign = new ItemStack(Material.OAK_HANGING_SIGN);
+        ItemMeta signMeta = sign.getItemMeta();
+        if (signMeta != null) {
+            signMeta.setDisplayName("§e§lWINNER LINE §f--->");
+            sign.setItemMeta(signMeta);
+        }
+        battleGui.setItem(21, sign);
 
         for (Player p : lobby.players) {
             p.openInventory(battleGui);
         }
 
+        // Tablica przechowująca historię opadających przedmiotów dla każdego gracza (5 rzędów)
+        int playerCount = lobby.players.size();
+        ItemStack[][] columns = new ItemStack[playerCount][5];
+
         new BukkitRunnable() {
             int ticks = 0;
+            final int maxTicks = 25; // 25 przesunięć co 4 ticki = 100 ticków (dokładnie 5 sekund)
 
             @Override
             public void run() {
                 ticks++;
-                if (ticks > 20) {
-                    this.cancel();
-                    determineWinner(lobby, battleGui);
-                    return;
+
+                for (int pIndex = 0; pIndex < playerCount; pIndex++) {
+                    // Przesuwanie przedmiotów w dół
+                    for (int row = 4; row > 0; row--) {
+                        columns[pIndex][row] = columns[pIndex][row - 1];
+                    }
+                    // Generowanie nowego przedmiotu na samej górze
+                    columns[pIndex][0] = getRandomItemFromConfig(lobby.caseName);
+
+                    // Wyświetlanie przedmiotów w pionowej kolumnie gracza (z pominięciem lewej/prawej krawędzi)
+                    int baseColumn = 2 + pIndex; // Kolumny od 2 do 5
+                    for (int row = 0; row < 5; row++) {
+                        int slot = (row * 9) + baseColumn;
+                        if (columns[pIndex][row] != null) {
+                            battleGui.setItem(slot, columns[pIndex][row]);
+                        }
+                    }
+
+                    Player p = lobby.players.get(pIndex);
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.2f);
                 }
 
-                for (int i = 0; i < lobby.players.size(); i++) {
-                    ItemStack rolled = getRandomItemFromConfig(lobby.caseName);
-                    battleGui.setItem(10 + i, rolled);
-                    lobby.players.get(i).playSound(lobby.players.get(i).getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.5f);
+                if (ticks >= maxTicks) {
+                    this.cancel();
+                    // Przedmiot na środku (rząd 2 / slot indeksu 2 w kolumnie) wygrywa
+                    determineWinner(lobby, columns);
                 }
             }
-        }.runTaskTimer(this, 0L, 3L);
+        }.runTaskTimer(this, 0L, 4L); // Co 4 ticki (0.2s)
     }
 
     private ItemStack getRandomItemFromConfig(String caseDisplayName) {
@@ -253,18 +282,20 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return new ItemStack(Material.DIRT);
     }
 
-    private void determineWinner(BattleLobby lobby, Inventory gui) {
-        Player winner = lobby.players.get(random.nextInt(lobby.players.size()));
+    private void determineWinner(BattleLobby lobby, ItemStack[][] finalColumns) {
+        int winnerIndex = random.nextInt(lobby.players.size());
+        Player winner = lobby.players.get(winnerIndex);
 
         for (Player p : lobby.players) {
-            p.sendMessage("§aBitwę wygrał gracz: §e" + winner.getName() + " §ai zabiera wszystkie wylosowane itemy!");
+            p.sendMessage("§aBitwę wygrał gracz: §e" + winner.getName() + " §ai zgarnia przedmioty!");
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         }
 
-        for (int i = 0; i < lobby.players.size(); i++) {
-            ItemStack drop = gui.getItem(10 + i);
-            if (drop != null) {
-                winner.getInventory().addItem(drop);
+        // Dodawanie do ekwipunku zwycięzcy przedmiotów, które wylądowały na środku (rząd 2)
+        for (int pIndex = 0; pIndex < lobby.players.size(); pIndex++) {
+            ItemStack winningMiddleItem = finalColumns[pIndex][2];
+            if (winningMiddleItem != null) {
+                winner.getInventory().addItem(winningMiddleItem);
             }
         }
 

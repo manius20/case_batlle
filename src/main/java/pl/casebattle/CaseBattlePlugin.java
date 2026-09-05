@@ -34,20 +34,30 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
     }
 
     public void openMainMenu(Player player) {
-        Inventory gui = Bukkit.createInventory(null, 27, "§8Wybierz skrzynkę do bitwy");
+        // Zwiększono rozmiar GUI na 54 sloty (duża skrzynia)
+        Inventory gui = Bukkit.createInventory(null, 54, "§8Wybierz skrzynkę do bitwy");
         ConfigurationSection cs = getConfig().getConfigurationSection("cases");
         if (cs == null) return;
 
         int slot = 10;
         for (String key : cs.getKeys(false)) {
+            if (slot >= 44) break; // Zabezpieczenie przed przepełnieniem
+            
+            // Omijamy odstępy przy krawędziach dla ładniejszego wyglądu
+            if (slot % 9 == 8) slot += 2;
+
             String name = cs.getString(key + ".display-name", key);
-            double cost = cs.getDouble(key + ".cost", 0.0);
+            int cost = cs.getInt(key + ".cost", 0);
 
             ItemStack item = new ItemStack(Material.CHEST);
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
                 meta.setDisplayName(name.replace("&", "§"));
-                meta.setLore(Arrays.asList("§7Koszt: §a" + cost + "$", "", "§eKliknij, aby utworzyć poczekalnię!"));
+                meta.setLore(Arrays.asList(
+                    "§7Koszt: §b" + cost + " Diamentów",
+                    "",
+                    "§eKliknij, aby utworzyć lub dołączyć!"
+                ));
                 item.setItemMeta(meta);
             }
             gui.setItem(slot++, item);
@@ -66,7 +76,20 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             if (clicked == null || clicked.getType() != Material.CHEST) return;
 
             String caseName = clicked.getItemMeta().getDisplayName();
+            int cost = getCaseCost(caseName);
+
+            // Sprawdzanie czy gracz ma wystarczająco diamentów
+            if (!hasEnoughDiamonds(player, cost)) {
+                player.sendMessage("§cNie masz wystarczająco diamentów! Wymagane: §b" + cost);
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                return;
+            }
+
+            // Pobieranie diamentów i wejście do gry
+            removeDiamonds(player, cost);
+            player.sendMessage("§aPobrano §b" + cost + " §adiamentów za wejście do bitwy.");
             createOrJoinLobby(player, caseName);
+
         } else if (title.startsWith("§8Poczekalnia Bitwy:")) {
             event.setCancelled(true);
             if (event.getRawSlot() == 22) {
@@ -75,6 +98,46 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     startBattle(lobby);
                 }
             }
+        }
+    }
+
+    private int getCaseCost(String caseDisplayName) {
+        ConfigurationSection cs = getConfig().getConfigurationSection("cases");
+        if (cs == null) return 0;
+
+        for (String key : cs.getKeys(false)) {
+            String name = cs.getString(key + ".display-name", "").replace("&", "§");
+            if (name.equals(caseDisplayName)) {
+                return cs.getInt(key + ".cost", 0);
+            }
+        }
+        return 0;
+    }
+
+    private boolean hasEnoughDiamonds(Player player, int amount) {
+        int count = 0;
+        for (ItemStack stack : player.getInventory().getContents()) {
+            if (stack != null && stack.getType() == Material.DIAMOND) {
+                count += stack.getAmount();
+            }
+        }
+        return count >= amount;
+    }
+
+    private void removeDiamonds(Player player, int amount) {
+        int leftToRemove = amount;
+        for (ItemStack stack : player.getInventory().getContents()) {
+            if (stack != null && stack.getType() == Material.DIAMOND) {
+                int stackAmount = stack.getAmount();
+                if (stackAmount <= leftToRemove) {
+                    leftToRemove -= stackAmount;
+                    stack.setAmount(0);
+                } else {
+                    stack.setAmount(stackAmount - leftToRemove);
+                    leftToRemove = 0;
+                }
+            }
+            if (leftToRemove <= 0) break;
         }
     }
 
@@ -192,7 +255,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
     private void determineWinner(BattleLobby lobby, Inventory gui) {
         Player winner = lobby.players.get(random.nextInt(lobby.players.size()));
-        
+
         for (Player p : lobby.players) {
             p.sendMessage("§aBitwę wygrał gracz: §e" + winner.getName() + " §ai zabiera wszystkie wylosowane itemy!");
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
@@ -204,7 +267,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                 winner.getInventory().addItem(drop);
             }
         }
-        
+
         activeLobbies.remove(winner.getUniqueId());
     }
 

@@ -908,21 +908,21 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             case DIAMOND_SWORD:
                 return 100;
             case DIAMOND_PICKAXE:
-                return 150;
+                return 125;
             case DIAMOND:
-                if (amount >= 64) return 135;
+                if (amount >= 64) return 120;
                 break;
             case NETHERITE_INGOT:
             case NETHERITE_SCRAP:
             case NETHERITE_BLOCK:
-                return 375;
+                return 275;
             case GOLDEN_APPLE:
                 if (amount >= 32) return 240;
                 if (amount >= 16) return 160;
                 if (amount >= 8) return 80;
                 return 10;
             case ENCHANTED_GOLDEN_APPLE:
-                return 650;
+                return 550;
             case ENDER_PEARL:
                 if (amount >= 16) return 185;
                 break;

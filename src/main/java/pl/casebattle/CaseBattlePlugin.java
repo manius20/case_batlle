@@ -42,24 +42,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         public String getDescription() { return description; }
     }
 
-    public static class BattleLobby {
-        public String ownerName;
-        public String caseName;
-        public BattleMode mode;
-        public int caseAmount;
-        public List<Player> players = new ArrayList<>();
-        public boolean starting = false;
-        public boolean started = false;
-        public Inventory activeGui;
-
-        public BattleLobby(String ownerName, String caseName, BattleMode mode, int caseAmount) {
-            this.ownerName = ownerName;
-            this.caseName = caseName;
-            this.mode = mode;
-            this.caseAmount = caseAmount;
-        }
-    }
-
     @Override
     public void onEnable() {
         saveDefaultConfig();
@@ -98,7 +80,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             gui.setItem(i, purpleGlass);
         }
 
-        // Książka informacyjna
+        // Książka informacyjna w lewym górnym rogu (Slot 0)
         ItemStack infoBook = new ItemStack(Material.BOOK);
         ItemMeta bookMeta = infoBook.getItemMeta();
         if (bookMeta != null) {
@@ -688,7 +670,7 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
                     int maxRoundValue = -1;
 
                     for (int pIndex = 0; pIndex < playerCount; pIndex++) {
-                        ItemStack won = columns[pIndex][1]; // Rząd wygrywający
+                        ItemStack won = columns[pIndex][1]; // Przedmiot wygrywający (row 1 / Rząd 3 w GUI)
                         if (won != null) {
                             wonItems.get(pIndex).add(won);
                             int val = getItemValue(won);
@@ -809,24 +791,12 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             public void run() {
                 ticks++;
 
-                for (int i = 0; i < 54; i++) {
-                    battleGui.setItem(i, purpleGlass);
+                for (int i = 0; i < lobby.players.size(); i++) {
+                    battleGui.setItem(2 + i, purpleGlass);
                 }
 
-                int winningPlayerIndex = tiedIndices.get(random.nextInt(tiedIndices.size()));
-
-                for (int pIndex = 0; pIndex < lobby.players.size(); pIndex++) {
-                    Player p = lobby.players.get(pIndex);
-                    ItemStack head = getPlayerHead(p, "§b" + p.getName());
-                    battleGui.setItem(11 + pIndex, head);
-
-                    if (tiedIndices.contains(pIndex)) {
-                        ItemStack drop = getRandomItemFromConfig(lobby.caseName);
-                        battleGui.setItem(29 + pIndex, drop);
-                    }
-                }
-
-                battleGui.setItem(2 + winningPlayerIndex, emeraldBlock);
+                int highlightedPlayerIndex = tiedIndices.get(random.nextInt(tiedIndices.size()));
+                battleGui.setItem(2 + highlightedPlayerIndex, emeraldBlock);
 
                 for (Player p : lobby.players) {
                     p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.8f, 1.5f);
@@ -834,37 +804,38 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
                 if (ticks >= maxTicks) {
                     this.cancel();
-                    finishBattle(lobby, winningPlayerIndex, wonItems, true);
+
+                    int finalWinnerIndex = tiedIndices.get(random.nextInt(tiedIndices.size()));
+
+                    for (int i = 0; i < lobby.players.size(); i++) {
+                        battleGui.setItem(2 + i, purpleGlass);
+                    }
+                    battleGui.setItem(2 + finalWinnerIndex, emeraldBlock);
+
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            finishBattle(lobby, finalWinnerIndex, wonItems, true);
+                        }
+                    }.runTaskLater(CaseBattlePlugin.this, 20L);
                 }
             }
-        }.runTaskTimer(this, 0L, 3L);
+        }.runTaskTimer(this, 0L, 2L);
     }
 
-    private void finishBattle(BattleLobby lobby, int winnerIndex, List<List<ItemStack>> wonItems, boolean tieBreakerWon) {
-        Player winner = lobby.players.get(winnerIndex);
+    private int getItemValue(ItemStack item) {
+        if (item == null) return 0;
 
-        for (Player p : lobby.players) {
-            if (p.equals(winner)) {
-                p.sendMessage("§a★ " + (tieBreakerWon ? "WYGRAŁEŚ DOGRYWKĘ!" : "WYGRAŁEŚ BITWĘ!") + " Gratulacje!");
-                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-            } else {
-                p.sendMessage("§cBitwę wygrał gracz: §e" + winner.getName() + "§c!");
-                p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-            }
-        }
+        int valuePerItem = switch (item.getType()) {
+            case DIAMOND -> 100;
+            case IRON_INGOT -> 10;
+            case GOLD_INGOT -> 25;
+            case EMERALD -> 50;
+            case NETHERITE_INGOT -> 250;
+            default -> 1;
+        };
 
-        for (List<ItemStack> list : wonItems) {
-            for (ItemStack item : list) {
-                if (item != null) {
-                    HashMap<Integer, ItemStack> left = winner.getInventory().addItem(item);
-                    for (ItemStack overflow : left.values()) {
-                        winner.getWorld().dropItemNaturally(winner.getLocation(), overflow);
-                    }
-                }
-            }
-        }
-
-        activeLobbies.entrySet().removeIf(entry -> entry.getValue().equals(lobby));
+        return valuePerItem * item.getAmount();
     }
 
     private ItemStack getRandomItemFromConfig(String caseDisplayName) {
@@ -875,47 +846,18 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
             String name = cs.getString(key + ".display-name", "").replace("&", "§");
             if (name.equals(caseDisplayName)) {
                 List<Map<?, ?>> items = cs.getMapList(key + ".items");
-                if (items.isEmpty()) return new ItemStack(Material.DIRT);
-
-                int totalChance = 0;
-                for (Map<?, ?> itemMap : items) {
-                    Object chanceObj = itemMap.get("chance");
-                    int chance = (chanceObj instanceof Number n) ? n.intValue() : 1;
-                    totalChance += chance;
-                }
-
-                if (totalChance <= 0) totalChance = 1;
-
-                int rand = random.nextInt(totalChance);
-                int current = 0;
+                double rand = random.nextDouble() * 100;
+                double cumulative = 0.0;
 
                 for (Map<?, ?> itemMap : items) {
-                    Object chanceObj = itemMap.get("chance");
-                    int chance = (chanceObj instanceof Number n) ? n.intValue() : 1;
-                    current += chance;
-
-                    if (rand < current) {
-                        Object matObj = itemMap.get("material");
-                        String matName = (matObj != null) ? matObj.toString() : "DIRT";
-                        Material mat = Material.matchMaterial(matName);
-                        if (mat == null) mat = Material.DIRT;
-
-                        Object amountObj = itemMap.get("amount");
-                        int amount = (amountObj instanceof Number n) ? n.intValue() : 1;
-
-                        Object nameObj = itemMap.get("display-name");
-                        String itemName = (nameObj != null) ? nameObj.toString() : null;
-
-                        Object valObj = itemMap.get("value");
-                        int val = (valObj instanceof Number n) ? n.intValue() : 0;
-
+                    cumulative += ((Number) itemMap.get("chance")).doubleValue();
+                    if (rand <= cumulative) {
+                        Material mat = Material.valueOf((String) itemMap.get("material"));
+                        int amount = ((Number) itemMap.get("amount")).intValue();
                         ItemStack stack = new ItemStack(mat, amount);
                         ItemMeta meta = stack.getItemMeta();
-                        if (meta != null) {
-                            if (itemName != null) {
-                                meta.setDisplayName(itemName.replace("&", "§"));
-                            }
-                            meta.setLore(Collections.singletonList("§7Wartość: §b" + val + " Diamentów"));
+                        if (meta != null && itemMap.containsKey("display-name")) {
+                            meta.setDisplayName(((String) itemMap.get("display-name")).replace("&", "§"));
                             stack.setItemMeta(meta);
                         }
                         return stack;
@@ -926,19 +868,43 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return new ItemStack(Material.DIRT);
     }
 
-    private int getItemValue(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) return 0;
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null || !meta.hasLore()) return 0;
+    private void finishBattle(BattleLobby lobby, int winnerIndex, List<List<ItemStack>> wonItems, boolean tieBroken) {
+        Player winner = lobby.players.get(winnerIndex);
 
-        for (String line : meta.getLore()) {
-            if (line.contains("Wartość:")) {
-                String clean = line.replaceAll("[^0-9]", "");
-                try {
-                    return Integer.parseInt(clean);
-                } catch (NumberFormatException ignored) {}
+        for (Player p : lobby.players) {
+            if (tieBroken) {
+                p.sendMessage("§a★ Bitwę po dogrywce (Tie-Break) wygrał gracz: §e" + winner.getName() + "§a!");
+            } else {
+                p.sendMessage("§a★ Bitwę w trybie §d" + lobby.mode.getDisplayName() + " §awygrał gracz: §e" + winner.getName() + "§a!");
+            }
+            p.sendMessage("§aZgarnia wszystkie przedmioty ze wszystkich " + lobby.caseAmount + " skrzynek!");
+            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+        }
+
+        for (List<ItemStack> list : wonItems) {
+            for (ItemStack item : list) {
+                winner.getInventory().addItem(item);
             }
         }
-        return 0;
+
+        activeLobbies.entrySet().removeIf(entry -> entry.getValue().equals(lobby));
+    }
+
+    private static class BattleLobby {
+        String ownerName;
+        String caseName;
+        BattleMode mode;
+        int caseAmount;
+        List<Player> players = new ArrayList<>();
+        boolean started = false;
+        boolean starting = false;
+        Inventory activeGui = null;
+
+        BattleLobby(String ownerName, String caseName, BattleMode mode, int caseAmount) {
+            this.ownerName = ownerName;
+            this.caseName = caseName;
+            this.mode = mode;
+            this.caseAmount = caseAmount;
+        }
     }
 }

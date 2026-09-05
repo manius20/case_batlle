@@ -405,7 +405,6 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
 
         openLobbyGUI(targetLobby);
 
-        // Automatyczny start, gdy dołączy 4. osoba
         if (targetLobby.players.size() == 4 && !targetLobby.starting) {
             startCountdown(targetLobby);
         }
@@ -629,9 +628,20 @@ public class CaseBattlePlugin extends JavaPlugin implements Listener {
         return maxIndex;
     }
 
+    // WARTOŚĆ PUNKTOWA PRZEDMIOTÓW DLA LIDERBORDA
     private int getItemValue(ItemStack item) {
-        if (item == null) return 1;
-        return item.getAmount();
+        if (item == null) return 0;
+
+        int valuePerItem = switch (item.getType()) {
+            case DIAMOND -> 100;
+            case IRON_INGOT -> 10;
+            case GOLD_INGOT -> 25;
+            case EMERALD -> 50;
+            case NETHERITE_INGOT -> 250;
+            default -> 1;
+        };
+
+        return valuePerItem * item.getAmount();
     }
 
     private ItemStack getRandomItemFromConfig(String caseDisplayName) {
